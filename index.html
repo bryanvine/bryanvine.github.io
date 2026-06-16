@@ -17,8 +17,19 @@
   .links{ font-size:15px; color:var(--muted); }
   .links a{ color:var(--accent); text-decoration:none; margin-right:16px; }
   .links a:hover{ text-decoration:underline; }
-  h2.sec{ font-size:14px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted);
-          margin:42px 0 6px; }
+  .about{ margin:30px 0 6px; font-size:16.5px; color:#2c3038; }
+  .about p{ margin:0; }
+  .bar{ display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap;
+        gap:10px; margin:42px 0 4px; }
+  .bar h2{ font-size:14px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:0; }
+  .sort{ font-size:13px; color:var(--muted); }
+  .sort span.lbl{ margin-right:6px; }
+  .sortbtn{ background:none; border:1px solid var(--rule); color:var(--muted); cursor:pointer;
+            font:inherit; font-size:12.5px; padding:3px 11px; border-radius:99px; margin-left:6px; }
+  .sortbtn:hover{ border-color:#c4ccd6; color:#33373d; }
+  .sortbtn.active{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .group-label{ font-size:12.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);
+                margin:22px 0 -2px; font-weight:600; }
   a.card{ display:block; text-decoration:none; color:inherit; background:var(--card);
           border:1px solid var(--rule); border-radius:11px; padding:18px 20px; margin:14px 0;
           transition:border-color .15s, box-shadow .15s, transform .15s; }
@@ -28,6 +39,7 @@
   .pmeta{ font-size:13px; color:var(--muted); margin:0 0 8px; }
   .pmeta .tag{ display:inline-block; background:#eef3fb; color:#1f6feb; font-weight:600;
                padding:1px 8px; border-radius:99px; font-size:12px; margin-right:8px; }
+  .pmeta .date{ font-variant-numeric:tabular-nums; }
   .pdesc{ font-size:15px; color:#3a3f46; margin:0; }
   .arrow{ color:var(--accent); font-weight:600; }
   footer{ margin-top:56px; padding-top:18px; border-top:1px solid var(--rule); color:var(--muted); font-size:13.5px; }
@@ -46,39 +58,60 @@
   </p>
 </header>
 
-<h2 class="sec">Quantitative Machine Learning</h2>
+<section class="about">
+  <p>I'm an independent researcher and engineer working where <strong>quantitative machine learning</strong>
+  meets <strong>high-performance GPU systems</strong>. I build end-to-end — raw market-data pipelines and
+  self-supervised models through to low-level inference kernels — across consumer and datacenter hardware.
+  My bias is toward rigorous, honestly-reported empirical work: leak-controlled evaluation, walk-forward
+  validation, and negative results stated as plainly as positive ones. Selected write-ups below.</p>
+</section>
 
-<a class="card" href="https://bryanvine.github.io/jepa-trader/">
-  <p class="ptitle">Does JEPA Find Alpha? Self-Supervised Joint-Embedding Predictive Architectures on Financial Markets</p>
-  <p class="pmeta"><span class="tag">Self-supervised learning</span><span class="tag">Quant finance</span> June 2026</p>
-  <p class="pdesc">A rigorous, leak-controlled feasibility study of JEPA across LOB microstructure, lower-frequency bars,
-  news sentiment, and crypto funding carry. JEPA matches supervised learning with no labels — yet across frequency,
-  asset class, modality, and a 6× change in scale, never beats a simple linear model, and no robust net-of-cost
-  alpha survives walk-forward validation. <span class="arrow">Read →</span></p>
-</a>
+<div class="bar">
+  <h2>Papers &amp; Notes</h2>
+  <div class="sort" role="group" aria-label="Sort papers">
+    <span class="lbl">Sort:</span>
+    <button class="sortbtn active" id="sort-date">Newest</button>
+    <button class="sortbtn" id="sort-topic">By topic</button>
+  </div>
+</div>
 
-<h2 class="sec">GPU Systems &amp; LLM Inference (Intel Arc)</h2>
+<div id="papers">
 
-<a class="card" href="https://bryanvine.github.io/turboquant-xpu/2026/04/16/qwen3-30b-tq-suffix-c1/">
-  <p class="ptitle">TurboQuant + EAGLE3 on Arc Pro B70: six integration fixes and a fused-kernel correctness regression</p>
-  <p class="pmeta"><span class="tag">SYCL / XPU</span><span class="tag">Speculative decoding</span> Apr 16, 2026</p>
-  <p class="pdesc">Porting TurboQuant KV-cache quantization and EAGLE3 speculative decoding to Intel Xe2 (Battlemage):
-  six integration fixes and a subtle fused-kernel correctness regression on Qwen3-30B. <span class="arrow">Read →</span></p>
-</a>
+  <a class="card" data-date="2026-06-15" data-topic="Quantitative ML"
+     href="https://bryanvine.github.io/jepa-trader/">
+    <p class="ptitle">Does JEPA Find Alpha? Self-Supervised Joint-Embedding Predictive Architectures on Financial Markets</p>
+    <p class="pmeta"><span class="tag">Self-supervised learning</span><span class="tag">Quant finance</span><span class="date">Jun 2026</span></p>
+    <p class="pdesc">A rigorous, leak-controlled feasibility study of JEPA across LOB microstructure, lower-frequency bars,
+    news sentiment, and crypto funding carry. JEPA matches supervised learning with no labels — yet across frequency,
+    asset class, modality, and a 6× change in scale, never beats a simple linear model, and no robust net-of-cost
+    alpha survives walk-forward validation. <span class="arrow">Read →</span></p>
+  </a>
 
-<a class="card" href="https://bryanvine.github.io/turboquant-xpu/2026/04/15/sycl-three-attempts-arc-b70/">
-  <p class="ptitle">Three SYCL attempts on Arc B70: ESIMD, joint_matrix, and the gap to Triton</p>
-  <p class="pmeta"><span class="tag">SYCL / XPU</span><span class="tag">Kernels</span> Apr 15, 2026</p>
-  <p class="pdesc">Three approaches to hand-writing fast attention kernels on Arc B70 — ESIMD, <code>joint_matrix</code>,
-  and where each falls short of Triton on the same hardware. <span class="arrow">Read →</span></p>
-</a>
+  <a class="card" data-date="2026-04-16" data-topic="GPU / LLM Inference"
+     href="https://bryanvine.github.io/turboquant-xpu/2026/04/16/qwen3-30b-tq-suffix-c1/">
+    <p class="ptitle">TurboQuant + EAGLE3 on Arc Pro B70: six integration fixes and a fused-kernel correctness regression</p>
+    <p class="pmeta"><span class="tag">SYCL / XPU</span><span class="tag">Speculative decoding</span><span class="date">Apr 16, 2026</span></p>
+    <p class="pdesc">Porting TurboQuant KV-cache quantization and EAGLE3 speculative decoding to Intel Xe2 (Battlemage):
+    six integration fixes and a subtle fused-kernel correctness regression on Qwen3-30B. <span class="arrow">Read →</span></p>
+  </a>
 
-<a class="card" href="https://bryanvine.github.io/turboquant-xpu/2026/04/14/spec-decode-intel-arc/">
-  <p class="ptitle">Speculative decoding on Intel Arc: a failed SYCL PoC and a 2× Triton fix</p>
-  <p class="pmeta"><span class="tag">SYCL / XPU</span><span class="tag">Performance</span> Apr 14, 2026</p>
-  <p class="pdesc">A failed SYCL proof-of-concept for speculative decoding on Intel Arc, and the Triton-based fix that
-  recovered a 2× speedup. <span class="arrow">Read →</span></p>
-</a>
+  <a class="card" data-date="2026-04-15" data-topic="GPU / LLM Inference"
+     href="https://bryanvine.github.io/turboquant-xpu/2026/04/15/sycl-three-attempts-arc-b70/">
+    <p class="ptitle">Three SYCL attempts on Arc B70: ESIMD, joint_matrix, and the gap to Triton</p>
+    <p class="pmeta"><span class="tag">SYCL / XPU</span><span class="tag">Kernels</span><span class="date">Apr 15, 2026</span></p>
+    <p class="pdesc">Three approaches to hand-writing fast attention kernels on Arc B70 — ESIMD, <code>joint_matrix</code>,
+    and where each falls short of Triton on the same hardware. <span class="arrow">Read →</span></p>
+  </a>
+
+  <a class="card" data-date="2026-04-14" data-topic="GPU / LLM Inference"
+     href="https://bryanvine.github.io/turboquant-xpu/2026/04/14/spec-decode-intel-arc/">
+    <p class="ptitle">Speculative decoding on Intel Arc: a failed SYCL PoC and a 2× Triton fix</p>
+    <p class="pmeta"><span class="tag">SYCL / XPU</span><span class="tag">Performance</span><span class="date">Apr 14, 2026</span></p>
+    <p class="pdesc">A failed SYCL proof-of-concept for speculative decoding on Intel Arc, and the Triton-based fix that
+    recovered a 2× speedup. <span class="arrow">Read →</span></p>
+  </a>
+
+</div>
 
 <footer>
   <p>Code: <a href="https://github.com/bryanvine/jepa-trader">jepa-trader</a> ·
@@ -89,5 +122,44 @@
 </footer>
 
 </div>
+
+<script>
+(function(){
+  var papers = document.getElementById('papers');
+  var cards = Array.prototype.slice.call(papers.querySelectorAll('.card'));
+  var btnDate = document.getElementById('sort-date');
+  var btnTopic = document.getElementById('sort-topic');
+  var TOPIC_ORDER = ['Quantitative ML', 'GPU / LLM Inference'];
+  function clearHeaders(){
+    Array.prototype.slice.call(papers.querySelectorAll('.group-label')).forEach(function(e){ e.remove(); });
+  }
+  function active(btn){ [btnDate, btnTopic].forEach(function(b){ b.classList.remove('active'); }); btn.classList.add('active'); }
+  function byDate(){
+    clearHeaders();
+    cards.slice().sort(function(a,b){ return b.dataset.date.localeCompare(a.dataset.date); })
+         .forEach(function(c){ papers.appendChild(c); });
+    active(btnDate);
+  }
+  function byTopic(){
+    clearHeaders();
+    var sorted = cards.slice().sort(function(a,b){
+      var t = TOPIC_ORDER.indexOf(a.dataset.topic) - TOPIC_ORDER.indexOf(b.dataset.topic);
+      return t !== 0 ? t : b.dataset.date.localeCompare(a.dataset.date);
+    });
+    var last = null;
+    sorted.forEach(function(c){
+      if(c.dataset.topic !== last){
+        var h = document.createElement('div'); h.className = 'group-label'; h.textContent = c.dataset.topic;
+        papers.appendChild(h); last = c.dataset.topic;
+      }
+      papers.appendChild(c);
+    });
+    active(btnTopic);
+  }
+  btnDate.addEventListener('click', byDate);
+  btnTopic.addEventListener('click', byTopic);
+  byDate();
+})();
+</script>
 </body>
 </html>
