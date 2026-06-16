@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bryan Vine — Research</title>
+<meta name="description" content="Independent research by Bryan Vine: quantitative machine learning for markets, and GPU systems / LLM-inference performance on Intel Arc.">
+<style>
+  :root{ --ink:#1a1a1a; --muted:#5b6470; --rule:#e3e6ea; --accent:#1f6feb; --bg:#fdfdfc; --card:#ffffff; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink);
+        font:17px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; }
+  .wrap{ max-width:780px; margin:0 auto; padding:64px 22px 96px; }
+  header.hero{ border-bottom:3px solid var(--ink); padding-bottom:26px; margin-bottom:10px; }
+  h1{ font-size:34px; margin:0 0 8px; letter-spacing:-0.02em; }
+  .tagline{ font-size:18px; color:#33373d; margin:0 0 14px; }
+  .links{ font-size:15px; color:var(--muted); }
+  .links a{ color:var(--accent); text-decoration:none; margin-right:16px; }
+  .links a:hover{ text-decoration:underline; }
+  h2.sec{ font-size:14px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted);
+          margin:42px 0 6px; }
+  a.card{ display:block; text-decoration:none; color:inherit; background:var(--card);
+          border:1px solid var(--rule); border-radius:11px; padding:18px 20px; margin:14px 0;
+          transition:border-color .15s, box-shadow .15s, transform .15s; }
+  a.card:hover{ border-color:var(--accent); box-shadow:0 6px 22px -10px rgba(31,111,235,.35); transform:translateY(-1px); }
+  .ptitle{ font-size:18.5px; font-weight:650; color:#15181c; line-height:1.32; margin:0 0 6px; }
+  a.card:hover .ptitle{ color:var(--accent); }
+  .pmeta{ font-size:13px; color:var(--muted); margin:0 0 8px; }
+  .pmeta .tag{ display:inline-block; background:#eef3fb; color:#1f6feb; font-weight:600;
+               padding:1px 8px; border-radius:99px; font-size:12px; margin-right:8px; }
+  .pdesc{ font-size:15px; color:#3a3f46; margin:0; }
+  .arrow{ color:var(--accent); font-weight:600; }
+  footer{ margin-top:56px; padding-top:18px; border-top:1px solid var(--rule); color:var(--muted); font-size:13.5px; }
+  footer a{ color:var(--accent); text-decoration:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>Bryan Vine</h1>
+  <p class="tagline">Independent research — quantitative machine learning for markets, and GPU&nbsp;systems / LLM-inference performance.</p>
+  <p class="links">
+    <a href="https://github.com/bryanvine">GitHub ↗</a>
+    <a href="mailto:bryan@bryanvine.com">bryan@bryanvine.com</a>
+  </p>
+</header>
+
+<h2 class="sec">Quantitative Machine Learning</h2>
+
+<a class="card" href="https://bryanvine.github.io/jepa-trader/">
+  <p class="ptitle">Does JEPA Find Alpha? Self-Supervised Joint-Embedding Predictive Architectures on Financial Markets</p>
+  <p class="pmeta"><span class="tag">Self-supervised learning</span><span class="tag">Quant finance</span> June 2026</p>
+  <p class="pdesc">A rigorous, leak-controlled feasibility study of JEPA across LOB microstructure, lower-frequency bars,
+  news sentiment, and crypto funding carry. JEPA matches supervised learning with no labels — yet across frequency,
+  asset class, modality, and a 6× change in scale, never beats a simple linear model, and no robust net-of-cost
+  alpha survives walk-forward validation. <span class="arrow">Read →</span></p>
+</a>
+
+<h2 class="sec">GPU Systems &amp; LLM Inference (Intel Arc)</h2>
+
+<a class="card" href="https://bryanvine.github.io/turboquant-xpu/2026/04/16/qwen3-30b-tq-suffix-c1/">
+  <p class="ptitle">TurboQuant + EAGLE3 on Arc Pro B70: six integration fixes and a fused-kernel correctness regression</p>
+  <p class="pmeta"><span class="tag">SYCL / XPU</span><span class="tag">Speculative decoding</span> Apr 16, 2026</p>
+  <p class="pdesc">Porting TurboQuant KV-cache quantization and EAGLE3 speculative decoding to Intel Xe2 (Battlemage):
+  six integration fixes and a subtle fused-kernel correctness regression on Qwen3-30B. <span class="arrow">Read →</span></p>
+</a>
+
+<a class="card" href="https://bryanvine.github.io/turboquant-xpu/2026/04/15/sycl-three-attempts-arc-b70/">
+  <p class="ptitle">Three SYCL attempts on Arc B70: ESIMD, joint_matrix, and the gap to Triton</p>
+  <p class="pmeta"><span class="tag">SYCL / XPU</span><span class="tag">Kernels</span> Apr 15, 2026</p>
+  <p class="pdesc">Three approaches to hand-writing fast attention kernels on Arc B70 — ESIMD, <code>joint_matrix</code>,
+  and where each falls short of Triton on the same hardware. <span class="arrow">Read →</span></p>
+</a>
+
+<a class="card" href="https://bryanvine.github.io/turboquant-xpu/2026/04/14/spec-decode-intel-arc/">
+  <p class="ptitle">Speculative decoding on Intel Arc: a failed SYCL PoC and a 2× Triton fix</p>
+  <p class="pmeta"><span class="tag">SYCL / XPU</span><span class="tag">Performance</span> Apr 14, 2026</p>
+  <p class="pdesc">A failed SYCL proof-of-concept for speculative decoding on Intel Arc, and the Triton-based fix that
+  recovered a 2× speedup. <span class="arrow">Read →</span></p>
+</a>
+
+<footer>
+  <p>Code: <a href="https://github.com/bryanvine/jepa-trader">jepa-trader</a> ·
+  <a href="https://github.com/bryanvine/turboquant-xpu">turboquant-xpu</a> ·
+  <a href="https://github.com/bryanvine/vllm-xpu">vllm-xpu</a> ·
+  <a href="https://github.com/bryanvine">all repos ↗</a><br>
+  © 2026 Bryan Vine · bryanvine.github.io</p>
+</footer>
+
+</div>
+</body>
+</html>
