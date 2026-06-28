@@ -89,6 +89,20 @@
 
 <div id="papers">
 
+  <a class="card" data-date="2026-06-27" data-topic="GPU / LLM Inference"
+     href="https://bryanvine.github.io/mla-gpt/">
+    <p class="ptitle">The Attention Variant Is the Only Variable: A Controlled Study of MLA vs MHA, MQA, and GQA at 124M Parameters</p>
+    <p class="pmeta"><span class="tag">MLA / KV-cache</span><span class="tag">LLM inference</span><span class="date">Jun 2026</span></p>
+    <p class="pdesc">A controlled study on a from-scratch 124M GPT: hold the backbone, RoPE, optimizer, data,
+    and token budget fixed and vary <em>only</em> the attention — MHA, MQA, GQA, and DeepSeek-V2
+    Multi-head Latent Attention (MLA). MLA compresses the KV cache <strong>5.6×</strong> vs MHA
+    (38.6&nbsp;GB → 6.85&nbsp;GB at a 128k-token context, where the cache — not the parameter count —
+    is the memory wall) and, via weight absorption, <em>overtakes</em> MHA and GQA on decode throughput
+    at long context. On the dev-scale quality sweep all four variants land within ~2.4% perplexity, so
+    the cache savings come at negligible quality cost; the 124M headline run is in progress. Trainable
+    end-to-end on one RTX&nbsp;4080&nbsp;Super. <span class="arrow">Read →</span></p>
+  </a>
+
   <a class="card" data-date="2026-06-24" data-topic="Quantitative ML"
      href="https://bryanvine.github.io/alpha-research/paper9.html">
     <p class="ptitle">The Machine Analyst: Two LLM Fundamental-Valuation Bots, and the Problem of Proving Skill</p>
@@ -207,6 +221,7 @@
   <p>Code: <a href="https://github.com/bryanvine/alpha-research">alpha-research</a> ·
   <a href="https://github.com/bryanvine/jepa-trader">jepa-trader</a> ·
   <a href="https://github.com/bryanvine/turboquant-xpu">turboquant-xpu</a> ·
+  <a href="https://github.com/bryanvine/mla-gpt">mla-gpt</a> ·
   <a href="https://github.com/bryanvine/vllm-xpu">vllm-xpu</a> ·
   <a href="https://github.com/bryanvine">all repos ↗</a><br>
   © 2026 Bryan Vine · bryanvine.github.io</p>
