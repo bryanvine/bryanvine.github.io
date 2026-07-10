@@ -89,6 +89,13 @@
 
 <div id="papers">
 
+  <a class="card" data-date="2026-07-10" data-topic="Systems Architecture"
+     href="https://bryanvine.github.io/bare-metal-social/">
+    <p class="ptitle">A Bare-Metal, Homogeneous-Node Architecture for a Distributed Social Network</p>
+    <p class="pmeta"><span class="tag">Distributed systems</span><span class="tag">Bare-metal infra</span><span class="date">Jul 2026</span></p>
+    <p class="pdesc">A shared-nothing reference architecture for running a Facebook/MySpace-class social network on a single commodity server SKU across two colocation facilities plus a lightweight witness site — every layer sharded and replicated across explicit failure domains (disk &lt; node &lt; rack &lt; colo). This <strong>v0.2</strong> revision folds a <strong>ZFS-managed spinning-disk capacity tier</strong> into the one node SKU: NVMe special-vdev / SLOG / L2ARC acceleration over a dense HDD pool lifts raw density <strong>~19×</strong> (~15&nbsp;TB → ~300&nbsp;TB per box) while keeping one part number, with Ceph device classes tiering hot flash against cold erasure-coded disk. Covers the two-and-a-half-site quorum trick, TAO/Haystack-style graph and media serving, Maglev-style load balancing, hybrid feed fan-out, and capacity planning under colo loss. <span class="arrow">Read →</span></p>
+  </a>
+
   <a class="card" data-date="2026-06-27" data-topic="GPU / LLM Inference"
      href="https://bryanvine.github.io/mla-gpt/">
     <p class="ptitle">The Attention Variant Is the Only Variable: A Controlled Study of MLA vs MHA, MQA, and GQA at 124M Parameters</p>
@@ -235,7 +242,7 @@
   var cards = Array.prototype.slice.call(papers.querySelectorAll('.card'));
   var btnDate = document.getElementById('sort-date');
   var btnTopic = document.getElementById('sort-topic');
-  var TOPIC_ORDER = ['Quantitative ML', 'GPU / LLM Inference'];
+  var TOPIC_ORDER = ['Quantitative ML', 'GPU / LLM Inference', 'Systems Architecture'];
   function clearHeaders(){
     Array.prototype.slice.call(papers.querySelectorAll('.group-label')).forEach(function(e){ e.remove(); });
   }

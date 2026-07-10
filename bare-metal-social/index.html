@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A Bare-Metal, Homogeneous-Node Architecture for a Distributed Social Network</title>
+<meta name="description" content="A shared-nothing reference architecture for running a Facebook/MySpace-class social network on identical commodity servers across multiple colocation facilities, with every layer distributed for high availability, fault tolerance, and performance.">
+<style>
+  :root{
+    --paper:#F6F8FA;
+    --panel:#FFFFFF;
+    --ink:#141A21;
+    --ink-soft:#48525E;
+    --line:#D3DCE6;
+    --line-soft:#E5EBF1;
+    --accent:#1E5F8C;      /* blueprint blue — structure */
+    --accent-deep:#123B57;
+    --mono-bg:#ECF1F6;
+    --ok:#2E7D5B;          /* semantic: healthy / redundant (diagrams only) */
+    --warn:#9A5A0B;        /* semantic: tradeoff / degraded */
+    --fault:#A83232;       /* semantic: failure (diagrams only) */
+    --sans:"Inter","Helvetica Neue",Arial,system-ui,sans-serif;
+    --serif:"Iowan Old Style","Charter","Georgia",Cambria,"Times New Roman",serif;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono","Menlo","Consolas",monospace;
+    --measure:70ch;
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--serif);
+    font-size:18px;
+    line-height:1.66;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+  }
+
+  /* ---------- layout scaffold ---------- */
+  .wrap{max-width:1080px;margin:0 auto;padding:0 28px}
+  .rule{border:0;border-top:1px solid var(--line);margin:0}
+
+  /* ---------- masthead ---------- */
+  header.paper-head{
+    border-bottom:2px solid var(--ink);
+    padding:64px 0 34px;
+  }
+  .kicker{
+    font-family:var(--mono);
+    font-size:12px;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+    color:var(--accent);
+    margin:0 0 20px;
+    display:flex;gap:14px;flex-wrap:wrap;align-items:center;
+  }
+  .kicker .tag{border:1px solid var(--line);padding:3px 8px;border-radius:2px;color:var(--ink-soft)}
+  h1.title{
+    font-family:var(--sans);
+    font-weight:800;
+    font-size:clamp(30px,4.4vw,50px);
+    line-height:1.06;
+    letter-spacing:-0.02em;
+    margin:0 0 20px;
+    max-width:20ch;
+  }
+  .byline{
+    font-family:var(--mono);
+    font-size:13px;
+    color:var(--ink-soft);
+    display:flex;gap:10px 22px;flex-wrap:wrap;
+  }
+  .byline b{color:var(--ink);font-weight:600}
+
+  /* ---------- abstract ---------- */
+  .abstract{
+    display:grid;grid-template-columns:150px 1fr;gap:28px;
+    padding:34px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .abstract .lbl{
+    font-family:var(--mono);font-size:12px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--ink-soft);padding-top:5px;
+  }
+  .abstract p{margin:0 0 12px;font-size:17px}
+  .abstract p:last-child{margin-bottom:0}
+
+  /* ---------- TOC ---------- */
+  nav.toc{
+    padding:30px 0 8px;
+    border-bottom:1px solid var(--line);
+  }
+  nav.toc .lbl{
+    font-family:var(--mono);font-size:12px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--ink-soft);margin:0 0 16px;
+  }
+  nav.toc ol{
+    list-style:none;margin:0;padding:0;
+    columns:2;column-gap:48px;
+    font-family:var(--mono);font-size:13.5px;
+  }
+  nav.toc li{
+    break-inside:avoid;margin:0 0 9px;
+    display:flex;gap:12px;align-items:baseline;
+  }
+  nav.toc .n{color:var(--accent);min-width:2.2em}
+  nav.toc a{color:var(--ink);text-decoration:none;border-bottom:1px solid transparent}
+  nav.toc a:hover{border-bottom-color:var(--accent)}
+
+  /* ---------- body sections ---------- */
+  main{padding:14px 0 40px}
+  section{padding:40px 0;border-bottom:1px solid var(--line-soft)}
+  section:last-child{border-bottom:0}
+  .sec-num{
+    font-family:var(--mono);font-size:13px;color:var(--accent);
+    letter-spacing:.05em;display:block;margin-bottom:8px;
+  }
+  h2{
+    font-family:var(--sans);font-weight:750;
+    font-size:clamp(22px,2.6vw,30px);
+    letter-spacing:-0.015em;line-height:1.14;
+    margin:0 0 20px;max-width:26ch;
+  }
+  h3{
+    font-family:var(--sans);font-weight:700;
+    font-size:19px;letter-spacing:-0.01em;
+    margin:34px 0 12px;
+  }
+  h4{
+    font-family:var(--mono);font-weight:600;font-size:13px;
+    letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);
+    margin:26px 0 10px;
+  }
+  p,li{max-width:var(--measure)}
+  p{margin:0 0 18px}
+  strong{font-weight:640}
+  a{color:var(--accent);text-decoration:none;border-bottom:1px solid var(--line)}
+  a:hover{border-bottom-color:var(--accent)}
+  ul,ol{margin:0 0 18px;padding-left:1.3em}
+  li{margin:0 0 9px}
+  code{
+    font-family:var(--mono);font-size:.86em;
+    background:var(--mono-bg);padding:1px 5px;border-radius:3px;
+    color:var(--accent-deep);
+  }
+
+  /* ---------- callout ---------- */
+  .callout{
+    max-width:var(--measure);
+    border-left:3px solid var(--warn);
+    background:linear-gradient(90deg,rgba(154,90,11,.06),rgba(154,90,11,0));
+    padding:16px 20px;margin:24px 0;border-radius:0 3px 3px 0;
+  }
+  .callout .h{
+    font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--warn);margin:0 0 8px;font-weight:600;
+  }
+  .callout p{margin:0;font-size:16.5px}
+  .callout.key{border-left-color:var(--accent);
+    background:linear-gradient(90deg,rgba(30,95,140,.06),rgba(30,95,140,0));}
+  .callout.key .h{color:var(--accent)}
+
+  /* ---------- figures ---------- */
+  figure{margin:30px 0;max-width:100%}
+  .fig-frame{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:22px;
+    overflow-x:auto;
+  }
+  figure svg{display:block;width:100%;height:auto;max-width:100%}
+  figcaption{
+    font-family:var(--mono);font-size:12.5px;color:var(--ink-soft);
+    margin-top:12px;line-height:1.5;max-width:var(--measure);
+  }
+  figcaption b{color:var(--accent);font-weight:600}
+
+  /* ---------- spec / datasheet card ---------- */
+  .spec{
+    background:var(--panel);border:1px solid var(--line);border-radius:4px;
+    overflow:hidden;margin:26px 0;max-width:var(--measure);
+  }
+  .spec .spec-head{
+    background:var(--ink);color:#EDF2F7;
+    font-family:var(--mono);font-size:12px;letter-spacing:.1em;
+    text-transform:uppercase;padding:12px 18px;
+    display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;
+  }
+  .spec .spec-head .rev{color:#8FB4CE}
+  .spec table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:13.5px}
+  .spec td{padding:9px 18px;border-top:1px solid var(--line-soft);vertical-align:top}
+  .spec td:first-child{color:var(--ink-soft);width:38%;white-space:nowrap}
+  .spec td:last-child{color:var(--ink)}
+
+  /* ---------- data tables ---------- */
+  .tbl-scroll{overflow-x:auto;margin:24px 0}
+  table.data{
+    border-collapse:collapse;width:100%;min-width:640px;
+    font-family:var(--sans);font-size:14.5px;
+  }
+  table.data caption{
+    text-align:left;font-family:var(--mono);font-size:12px;
+    color:var(--ink-soft);letter-spacing:.08em;text-transform:uppercase;
+    padding-bottom:10px;
+  }
+  table.data th{
+    text-align:left;font-weight:700;background:var(--mono-bg);
+    padding:10px 14px;border-bottom:2px solid var(--line);vertical-align:bottom;
+    font-size:13px;letter-spacing:.02em;
+  }
+  table.data td{padding:10px 14px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+  table.data tr:hover td{background:rgba(30,95,140,.03)}
+  .pill{
+    font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:10px;
+    display:inline-block;font-weight:600;letter-spacing:.02em;
+  }
+  .pill.ok{background:rgba(46,125,91,.12);color:var(--ok)}
+  .pill.warn{background:rgba(154,90,11,.12);color:var(--warn)}
+
+  /* ---------- footer ---------- */
+  footer{border-top:2px solid var(--ink);padding:34px 0 70px}
+  footer .refs{font-size:15px}
+  footer ol{padding-left:1.4em}
+  footer .refs li{margin-bottom:8px;color:var(--ink-soft)}
+  footer .refs li a{color:var(--accent)}
+  .colophon{
+    font-family:var(--mono);font-size:12px;color:var(--ink-soft);
+    margin-top:34px;line-height:1.7;
+  }
+
+  /* ---------- responsive ---------- */
+  @media (max-width:720px){
+    body{font-size:17px}
+    .wrap{padding:0 20px}
+    .abstract{grid-template-columns:1fr;gap:10px}
+    nav.toc ol{columns:1}
+    .spec td:first-child{width:44%;white-space:normal}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{scroll-behavior:auto!important}
+  }
+  html{scroll-behavior:smooth}
+  a:focus-visible,:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
+
+  @media print{
+    body{background:#fff;font-size:11pt}
+    header.paper-head{padding-top:0}
+    section{break-inside:auto}
+    figure,.spec,.callout,table.data{break-inside:avoid}
+    a{color:var(--ink);border:0}
+    nav.toc{display:none}
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+<header class="paper-head">
+  <p class="kicker">
+    <span>Systems Architecture</span>
+    <span class="tag">Working paper</span>
+    <span class="tag">v0.2</span>
+  </p>
+  <h1 class="title">A Bare-Metal, Homogeneous-Node Architecture for a Distributed Social Network</h1>
+  <p class="byline">
+    <span><b>Bryan Vine</b></span>
+    <span>bryanvine.github.io</span>
+    <span>July 2026</span>
+    <span>Reference architecture / for discussion</span>
+  </p>
+</header>
+
+<div class="abstract">
+  <div class="lbl">Abstract</div>
+  <div>
+    <p>This paper describes a reference architecture for operating a Facebook- or MySpace-class social network on <strong>owned, bare-metal infrastructure built from identical commodity servers</strong>, distributed across two production colocation facilities and one lightweight witness site. The design target is a privacy-first, ad-free, subscription-funded platform: because revenue is not derived from advertising or data brokerage, cost-per-user must be low and predictable, which in turn favors owned hardware over per-request cloud pricing at steady-state scale.</p>
+    <p>The central constraint is <strong>hardware homogeneity</strong>. Every physical machine ships to the same bill of materials; role assignment (load balancer, application, cache, database, object storage) is a software decision made by a cluster scheduler and a placement layer, never a hardware decision made at procurement. On top of that uniform substrate, every logical layer is independently replicated and sharded so that the failure of a disk, a node, a rack, or an entire colo degrades capacity without causing an outage.</p>
+    <p>We cover the reference node, the intra-colo network fabric, the inter-colo topology and its consistency implications, the per-layer high-availability and fault-tolerance strategy, the tiered flash-and-disk storage substrate, capacity planning under colo-loss, and the provisioning and observability tooling that keeps a fleet of anonymous, interchangeable machines coherent.</p>
+  </div>
+</div>
+
+<nav class="toc" aria-label="Table of contents">
+  <p class="lbl">Contents</p>
+  <ol>
+    <li><span class="n">1</span><a href="#goals">Design goals &amp; principles</a></li>
+    <li><span class="n">2</span><a href="#node">The reference node</a></li>
+    <li><span class="n">3</span><a href="#fabric">Intra-colo network fabric</a></li>
+    <li><span class="n">4</span><a href="#topology">Multi-colo topology &amp; the quorum problem</a></li>
+    <li><span class="n">5</span><a href="#scheduler">Homogeneous pool &amp; the scheduler</a></li>
+    <li><span class="n">6</span><a href="#edge">Traffic entry &amp; load balancing</a></li>
+    <li><span class="n">7</span><a href="#app">Stateless application tier</a></li>
+    <li><span class="n">8</span><a href="#cache">Cache &amp; social-graph serving</a></li>
+    <li><span class="n">9</span><a href="#data">Data tier</a></li>
+    <li><span class="n">10</span><a href="#storage">Object &amp; media storage</a></li>
+    <li><span class="n">11</span><a href="#stream">Event stream &amp; feed fan-out</a></li>
+    <li><span class="n">12</span><a href="#search">Search &amp; coordination</a></li>
+    <li><span class="n">13</span><a href="#ha">HA / FT matrix</a></li>
+    <li><span class="n">14</span><a href="#capacity">Capacity planning</a></li>
+    <li><span class="n">15</span><a href="#failure">Failure walkthroughs</a></li>
+    <li><span class="n">16</span><a href="#ops">Provisioning &amp; observability</a></li>
+    <li><span class="n">17</span><a href="#sec">Security &amp; privacy</a></li>
+    <li><span class="n">18</span><a href="#limits">Limitations &amp; future work</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<!-- ============ 1 ============ -->
+<section id="goals">
+  <span class="sec-num">§ 1</span>
+  <h2>Design goals &amp; principles</h2>
+  <p>The architecture is governed by six principles. Every later decision is traceable to one of them.</p>
+
+  <h4>P1 — Homogeneous commodity hardware</h4>
+  <p>A single server SKU is procured in volume. Any machine can fill any role. This collapses procurement, sparing, capacity modeling, and firmware management into one problem instead of five, and it means a failed database node and a failed cache node are replaced from the same shelf of cold spares. The cost is a modest efficiency loss versus role-optimized SKUs; §2 explains why a <em>balanced</em> node makes that loss small.</p>
+
+  <h4>P2 — Shared-nothing</h4>
+  <p>No component is a singleton whose loss stops the system. There is no shared SAN, no primary-only database, no single load balancer. State is partitioned and replicated; the loss of any one owner is survivable by a peer.</p>
+
+  <h4>P3 — Distributed at every layer</h4>
+  <p>Sharding and replication are applied independently at each tier — edge, LB, app, cache, data, storage, stream, search — rather than relying on one tier to protect the others. A cache-tier failure must not become a database outage.</p>
+
+  <h4>P4 — Failure domains are explicit</h4>
+  <p>Disk &lt; node &lt; rack &lt; colo. Every placement decision — replica sets, erasure-coded stripes, shard replicas — is aware of this hierarchy and spreads copies to tolerate the loss of a whole domain, not just a single machine.</p>
+
+  <h4>P5 — Cattle, not pets</h4>
+  <p>Machines are anonymous and interchangeable. They PXE-boot an immutable image, receive a role from the scheduler, and are drained and reimaged rather than hand-repaired. No machine holds unreplicated state that would make its loss expensive.</p>
+
+  <h4>P6 — Cost discipline as a product requirement</h4>
+  <p>Because the platform is funded by subscriptions rather than advertising (see the companion product brief), infrastructure cost is a first-class constraint, not an afterthought. Owned commodity iron at steady-state utilization, amortized over 4–5 years, sets a far lower and more predictable marginal cost per active user than metered cloud — which is what lets the subscription price stay low.</p>
+</section>
+
+<!-- ============ 2 ============ -->
+<section id="node">
+  <span class="sec-num">§ 2</span>
+  <h2>The reference node</h2>
+  <p>Every physical machine is identical. Rather than optimize separate SKUs for compute, memory, and storage, we specify one <strong>balanced</strong> node: enough RAM to host cache and database working sets (and to feed a ZFS ARC), a <strong>flash tier</strong> of NVMe for hot data and metadata, a <strong>spinning-disk capacity tier</strong> for bulk media, and enough cores to run application containers. The scheduler then decides, per machine and per day, which of those capabilities to actually use.</p>
+
+  <div class="spec">
+    <div class="spec-head"><span>Reference Node — "R1"</span><span class="rev">rev B · 1 SKU · fleet-wide</span></div>
+    <table>
+      <tr><td>Form factor</td><td>2U, single-socket, 12 × 3.5" front bays + rear flash</td></tr>
+      <tr><td>CPU</td><td>1 × 32-core x86-64 (AMD EPYC / Intel Xeon class)</td></tr>
+      <tr><td>Memory</td><td>256 GB DDR5 ECC (8 × 32 GB, room to 512 GB — also feeds ZFS ARC)</td></tr>
+      <tr><td>Flash tier</td><td>4 × 3.84 TB NVMe U.2 (~15 TB) — hot OSDs, BlueStore WAL/DB, ZFS special vdev + SLOG + L2ARC</td></tr>
+      <tr><td>Capacity tier</td><td>12 × 24 TB SAS/SATA HDD (~288 TB raw) — warm/cold media OSDs, managed by ZFS</td></tr>
+      <tr><td>Boot / system</td><td>2 × 480 GB M.2, mirrored — OS is immutable + netboot</td></tr>
+      <tr><td>Network</td><td>2 × 25 GbE (LACP / dual-fabric), 1 × 1 GbE BMC</td></tr>
+      <tr><td>Out-of-band</td><td>Redfish-capable BMC (power, console, PXE control)</td></tr>
+      <tr><td>Power</td><td>Dual PSU, A/B feed</td></tr>
+      <tr><td>Usable roles</td><td>LB · app · cache · SQL · OSD · stream · search</td></tr>
+    </table>
+  </div>
+
+  <p>Roughly 15 TB of NVMe flash <em>plus</em> ~288 TB of spinning disk and 256 GB of RAM per node — on the order of <strong>300 TB raw per box</strong> — means the same machine can act as a flash-and-disk Ceph OSD host, a MySQL shard replica, or a Memcached instance without reconfiguration. Storage-heavy and compute-heavy services coexist on the fleet; the scheduler simply avoids co-locating two hot roles — a memory-hungry ZFS OSD and a cache or database instance, say — on the same machine. Where a workload genuinely needs a different shape, we prefer <em>more identical nodes</em> over a second SKU, trading a little per-U density for the operational simplicity of one part number.</p>
+
+  <div class="callout">
+    <div class="h">Tradeoff — homogeneity vs. density, revisited</div>
+    <p>Earlier revisions accepted low storage density as the price of one SKU, and §18 flagged a dedicated dense-storage SKU as likely future work. This revision instead <strong>thickens the single SKU into a hybrid flash-plus-disk node</strong>: a spinning-disk capacity tier lifts raw density roughly <strong>19×</strong> — from ~15 TB to ~300 TB per box — while keeping exactly one part number, one firmware/qualification pipeline, and any-spare-replaces-any-failure sparing. A purpose-built JBOD still packs more disk per U, but the hybrid node closes most of the gap without surrendering homogeneity. The residual cost is a 2U (rather than 1U) footprint and a storage stack — ZFS beneath Ceph, §10 — with more moving parts than all-flash BlueStore.</p>
+  </div>
+</section>
+
+<!-- ============ 3 ============ -->
+<section id="fabric">
+  <span class="sec-num">§ 3</span>
+  <h2>Intra-colo network fabric</h2>
+  <p>Within each colo, nodes are wired in a <strong>leaf-spine (Clos) fabric</strong>. Every rack has a top-of-rack (ToR) leaf switch; every leaf connects to every spine. This gives non-blocking, uniform east-west bandwidth — critical because a social workload is dominated by internal traffic: an application node fanning a single page render out to dozens of cache, database, and storage nodes.</p>
+  <ul>
+    <li><strong>Routing:</strong> L3 to the ToR with BGP and ECMP. Each node has two 25 GbE uplinks to two leaves; the loss of a leaf halves a rack's bandwidth but never isolates it.</li>
+    <li><strong>Failure domain = rack:</strong> a rack is the smallest unit the placement layer treats as a correlated-failure boundary (shared ToR, shared PDU pair). Replica sets never place two copies in the same rack.</li>
+    <li><strong>Addressing:</strong> nodes get stable identities from the provisioning system, not from their physical slot, so a machine can be moved or reimaged without reconfiguring dependents.</li>
+  </ul>
+  <p>Racks are provisioned in <em>N+1</em>: the fabric and power are sized so that one rack per row can be lost (or taken down for maintenance) with headroom to spare. Dual PSUs on A/B feeds mean a single PDU or feed failure drops no nodes.</p>
+</section>
+
+<!-- ============ 4 ============ -->
+<section id="topology">
+  <span class="sec-num">§ 4</span>
+  <h2>Multi-colo topology &amp; the quorum problem</h2>
+  <p>The platform runs <strong>active-active across two production colocation facilities</strong>, A and B, chosen for geographic and network diversity (different metros, different transit providers, independent power grids). Users are steered to the nearest healthy colo; each colo holds a full, serving copy of the data.</p>
+
+  <div class="callout key">
+    <div class="h">Key decision — two colos cannot form a quorum</div>
+    <p>Consensus systems (Raft, Paxos) require a strict majority to elect a leader and commit. With exactly two sites, no side ever holds a majority when the link between them breaks: either you refuse to serve (unavailable) or both sides serve independently (split-brain). The fix is a <strong>third site</strong> — but it need not be a full colo.</p>
+  </div>
+
+  <p>We therefore add a <strong>witness site, W</strong>: a minimal footprint (a handful of R1 nodes or even leased capacity) that hosts <em>no user-serving traffic</em> and stores only consensus voters and metadata replicas. Quorum-bearing systems are deployed as <code>2 : 2 : 1</code> across A : B : W. Now the loss of any one site still leaves a majority (e.g., A + W = 3 of 5), so the survivors elect a leader and keep committing, while the third site's replicas simply rejoin when it returns. This is the classic three-availability-zone pattern, executed with one cheap arbiter instead of three equal data centers.</p>
+
+  <figure>
+    <div class="fig-frame">
+      <svg viewBox="0 0 760 360" role="img" aria-label="Global topology: two production colos A and B in active-active, plus a witness site W, users routed by anycast, with cross-site replication.">
+        <defs>
+          <marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+            <path d="M0,0 L9,4.5 L0,9 z" fill="#48525E"/>
+          </marker>
+          <style>
+            .lbl{font-family:ui-monospace,Menlo,monospace;font-size:12px;fill:#141A21}
+            .sub{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#48525E}
+            .cap{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#1E5F8C}
+          </style>
+        </defs>
+
+        <!-- users -->
+        <ellipse cx="380" cy="34" rx="120" ry="20" fill="#ECF1F6" stroke="#D3DCE6"/>
+        <text x="380" y="38" text-anchor="middle" class="lbl">users → anycast DNS / BGP VIP</text>
+
+        <!-- colo A -->
+        <rect x="40" y="120" width="250" height="150" rx="6" fill="#FFFFFF" stroke="#1E5F8C" stroke-width="1.6"/>
+        <text x="56" y="145" class="cap">COLO A · production</text>
+        <text x="56" y="166" class="sub">leaf-spine fabric</text>
+        <text x="56" y="184" class="sub">full serving stack</text>
+        <text x="56" y="202" class="sub">SQL / cache / OSD</text>
+        <text x="56" y="220" class="sub">voters: 2</text>
+        <rect x="56" y="232" width="60" height="22" rx="3" fill="#ECF1F6" stroke="#D3DCE6"/>
+        <text x="86" y="247" text-anchor="middle" class="sub">rack…</text>
+        <rect x="124" y="232" width="60" height="22" rx="3" fill="#ECF1F6" stroke="#D3DCE6"/>
+        <text x="154" y="247" text-anchor="middle" class="sub">rack…</text>
+        <rect x="192" y="232" width="60" height="22" rx="3" fill="#ECF1F6" stroke="#D3DCE6"/>
+        <text x="222" y="247" text-anchor="middle" class="sub">rack…</text>
+
+        <!-- colo B -->
+        <rect x="470" y="120" width="250" height="150" rx="6" fill="#FFFFFF" stroke="#1E5F8C" stroke-width="1.6"/>
+        <text x="486" y="145" class="cap">COLO B · production</text>
+        <text x="486" y="166" class="sub">leaf-spine fabric</text>
+        <text x="486" y="184" class="sub">full serving stack</text>
+        <text x="486" y="202" class="sub">SQL / cache / OSD</text>
+        <text x="486" y="220" class="sub">voters: 2</text>
+        <rect x="486" y="232" width="60" height="22" rx="3" fill="#ECF1F6" stroke="#D3DCE6"/>
+        <text x="516" y="247" text-anchor="middle" class="sub">rack…</text>
+        <rect x="554" y="232" width="60" height="22" rx="3" fill="#ECF1F6" stroke="#D3DCE6"/>
+        <text x="584" y="247" text-anchor="middle" class="sub">rack…</text>
+        <rect x="622" y="232" width="60" height="22" rx="3" fill="#ECF1F6" stroke="#D3DCE6"/>
+        <text x="652" y="247" text-anchor="middle" class="sub">rack…</text>
+
+        <!-- witness -->
+        <rect x="305" y="290" width="150" height="56" rx="6" fill="#FFFFFF" stroke="#9A5A0B" stroke-width="1.4" stroke-dasharray="5 4"/>
+        <text x="380" y="312" text-anchor="middle" class="lbl">WITNESS W</text>
+        <text x="380" y="330" text-anchor="middle" class="sub">voter: 1 · no user traffic</text>
+
+        <!-- user links -->
+        <line x1="300" y1="46" x2="180" y2="118" stroke="#48525E" marker-end="url(#arrow)"/>
+        <line x1="460" y1="46" x2="580" y2="118" stroke="#48525E" marker-end="url(#arrow)"/>
+
+        <!-- replication A<->B -->
+        <line x1="290" y1="180" x2="470" y2="180" stroke="#1E5F8C" stroke-width="1.6"/>
+        <text x="380" y="174" text-anchor="middle" class="cap">async replication</text>
+
+        <!-- witness voter links -->
+        <line x1="200" y1="270" x2="330" y2="300" stroke="#9A5A0B" stroke-dasharray="4 4"/>
+        <line x1="560" y1="270" x2="430" y2="300" stroke="#9A5A0B" stroke-dasharray="4 4"/>
+        <text x="380" y="284" text-anchor="middle" class="sub">quorum: 2 : 2 : 1</text>
+      </svg>
+    </div>
+    <figcaption><b>Figure 1.</b> Global topology. Two production colos in active-active plus a low-cost witness. Quorum-bearing state is placed <code>2:2:1</code> so any single site loss still leaves a majority (3 of 5 voters).</figcaption>
+  </figure>
+
+  <h3>Replication &amp; consistency</h3>
+  <p>Most cross-colo replication is <strong>asynchronous</strong>: a write commits locally and streams to the peer within tens of milliseconds. This keeps user-facing latency low and tolerates the inter-colo RTT. The consequence is a small replication lag window and the possibility of conflicting concurrent writes to the same key in different colos. We handle this by <strong>partitioning write authority by shard</strong>: each data shard has a home colo that owns writes for its key range, and the peer serves reads and stands by to take over. Cross-shard reads are served locally from the replica. This gives read-anywhere locality with single-writer-per-shard simplicity, avoiding multi-master conflict resolution for the core social graph.</p>
+</section>
+
+<!-- ============ 5 ============ -->
+<section id="scheduler">
+  <span class="sec-num">§ 5</span>
+  <h2>Homogeneous pool &amp; the scheduler</h2>
+  <p>Because the hardware is uniform, the fleet is presented to operators as a <strong>single pool of interchangeable capacity</strong>. A cluster scheduler — Kubernetes on bare metal, or HashiCorp Nomad for a lighter footprint — bin-packs services onto nodes, honors placement constraints (spread replicas across racks and colos), and reschedules workloads off any node that fails. This is what turns "distributed at every layer" from a diagram into a running property: fault tolerance is the scheduler continuously re-satisfying placement constraints as machines come and go.</p>
+
+  <figure>
+    <div class="fig-frame">
+      <svg viewBox="0 0 760 300" role="img" aria-label="One physical pool of identical nodes with logical service layers assigned by software.">
+        <defs><style>
+          .lbl{font-family:ui-monospace,Menlo,monospace;font-size:12px;fill:#141A21}
+          .sub{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#48525E}
+          .cap{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#1E5F8C}
+        </style></defs>
+
+        <text x="30" y="28" class="cap">LOGICAL LAYERS  (software-assigned roles)</text>
+        <g>
+          <rect x="30" y="40" width="110" height="30" rx="3" fill="#ECF1F6" stroke="#1E5F8C"/><text x="85" y="60" text-anchor="middle" class="sub">L4/L7 LB</text>
+          <rect x="150" y="40" width="110" height="30" rx="3" fill="#ECF1F6" stroke="#1E5F8C"/><text x="205" y="60" text-anchor="middle" class="sub">app tier</text>
+          <rect x="270" y="40" width="110" height="30" rx="3" fill="#ECF1F6" stroke="#1E5F8C"/><text x="325" y="60" text-anchor="middle" class="sub">cache / graph</text>
+          <rect x="390" y="40" width="110" height="30" rx="3" fill="#ECF1F6" stroke="#1E5F8C"/><text x="445" y="60" text-anchor="middle" class="sub">SQL shards</text>
+          <rect x="510" y="40" width="110" height="30" rx="3" fill="#ECF1F6" stroke="#1E5F8C"/><text x="565" y="60" text-anchor="middle" class="sub">object/OSD</text>
+          <rect x="630" y="40" width="100" height="30" rx="3" fill="#ECF1F6" stroke="#1E5F8C"/><text x="680" y="60" text-anchor="middle" class="sub">stream/search</text>
+        </g>
+
+        <text x="380" y="108" text-anchor="middle" class="cap">▼  scheduler places roles onto the pool  ▼</text>
+
+        <text x="30" y="146" class="cap">PHYSICAL POOL  (one SKU · one part number)</text>
+        <g>
+          <!-- row of identical nodes -->
+          <g>
+            <rect x="30" y="158" width="66" height="40" rx="3" fill="#FFFFFF" stroke="#D3DCE6"/><text x="63" y="182" text-anchor="middle" class="sub">R1</text>
+            <rect x="104" y="158" width="66" height="40" rx="3" fill="#FFFFFF" stroke="#D3DCE6"/><text x="137" y="182" text-anchor="middle" class="sub">R1</text>
+            <rect x="178" y="158" width="66" height="40" rx="3" fill="#FFFFFF" stroke="#D3DCE6"/><text x="211" y="182" text-anchor="middle" class="sub">R1</text>
+            <rect x="252" y="158" width="66" height="40" rx="3" fill="#FFFFFF" stroke="#D3DCE6"/><text x="285" y="182" text-anchor="middle" class="sub">R1</text>
+            <rect x="326" y="158" width="66" height="40" rx="3" fill="#FFFFFF" stroke="#D3DCE6"/><text x="359" y="182" text-anchor="middle" class="sub">R1</text>
+            <rect x="400" y="158" width="66" height="40" rx="3" fill="#FFFFFF" stroke="#D3DCE6"/><text x="433" y="182" text-anchor="middle" class="sub">R1</text>
+            <rect x="474" y="158" width="66" height="40" rx="3" fill="#FFFFFF" stroke="#D3DCE6"/><text x="507" y="182" text-anchor="middle" class="sub">R1</text>
+            <rect x="548" y="158" width="66" height="40" rx="3" fill="#FFFFFF" stroke="#D3DCE6"/><text x="581" y="182" text-anchor="middle" class="sub">R1</text>
+            <rect x="622" y="158" width="66" height="40" rx="3" fill="#FFFFFF" stroke="#D3DCE6"/><text x="655" y="182" text-anchor="middle" class="sub">R1</text>
+            <rect x="696" y="158" width="34" height="40" rx="3" fill="#FFFFFF" stroke="#D3DCE6" stroke-dasharray="3 3"/><text x="713" y="182" text-anchor="middle" class="sub">…</text>
+          </g>
+          <!-- cold spares -->
+          <rect x="30" y="214" width="140" height="34" rx="3" fill="#F6F8FA" stroke="#2E7D5B" stroke-dasharray="4 4"/>
+          <text x="100" y="235" text-anchor="middle" class="sub">cold spares (any→any)</text>
+        </g>
+        <text x="380" y="235" class="sub">Any node can fill any logical role. A failed DB node and a</text>
+        <text x="380" y="250" class="sub">failed cache node are both replaced from the same shelf.</text>
+      </svg>
+    </div>
+    <figcaption><b>Figure 2.</b> Roles are a software overlay on one uniform substrate. The scheduler assigns and continuously re-satisfies placement; sparing is fungible because there is a single SKU.</figcaption>
+  </figure>
+
+  <p>Provisioning is netboot-first: a node powers on, PXE-boots an immutable OS image (managed with a tool such as Tinkerbell or MAAS), registers with the scheduler, and is handed work. There is no per-machine hand configuration to drift. Reimaging is the repair of first resort.</p>
+</section>
+
+<!-- ============ 6 ============ -->
+<section id="edge">
+  <span class="sec-num">§ 6</span>
+  <h2>Traffic entry &amp; load balancing</h2>
+  <p>User traffic enters through three cooperating stages, all running on R1 nodes.</p>
+  <h4>Stage 1 — Anycast + GeoDNS</h4>
+  <p>A small set of public VIPs is announced by <strong>BGP anycast</strong> from both colos. The nearest colo, by network topology, naturally receives the user; if a colo withdraws its announcement (planned or on failure), traffic reconverges to the survivor within seconds. GeoDNS provides a coarser second layer of steering and a fast way to drain a site.</p>
+  <h4>Stage 2 — L4 load balancing</h4>
+  <p>Behind each VIP is a tier of <strong>L4 balancers</strong> using ECMP plus consistent hashing, in the style of Google's Maglev [5] — packet-forwarding data planes (XDP/eBPF) that spread connections across L7 proxies while keeping a given flow pinned to one backend. L4 nodes are stateless and horizontally scalable; ECMP across several of them means losing one reshuffles only its share of flows.</p>
+  <h4>Stage 3 — L7 reverse proxy</h4>
+  <p>An <strong>L7 tier</strong> (Envoy or HAProxy) terminates TLS, applies routing and rate limiting, and load-balances to application backends by health and locality. This is also where a web application firewall and per-endpoint circuit breaking live. Because every stage is a horizontally scaled pool with health checking, there is no single balancer to lose.</p>
+</section>
+
+<!-- ============ 7 ============ -->
+<section id="app">
+  <span class="sec-num">§ 7</span>
+  <h2>Stateless application tier</h2>
+  <p>Application servers are <strong>stateless</strong>: any request can be served by any app instance, because no session or user state lives on the machine. Session and ephemeral state are externalized to the cache tier; durable state lives in the data and storage tiers. This is what makes the app tier trivially fault-tolerant — an instance dying mid-request costs one retry, and the scheduler starts a replacement elsewhere.</p>
+  <p>A single page render is a <strong>fan-out</strong>: the app node gathers a user's profile, their graph neighborhood, recent posts from followed accounts, notification counts, and media URLs, typically touching dozens of cache and data backends in parallel before composing a response. Two implications follow — the internal fabric must be fast and non-blocking (§3), and every backend call needs a tight timeout with a graceful degradation path (render the page with a stale or empty module rather than block on one slow shard).</p>
+</section>
+
+<!-- ============ 8 ============ -->
+<section id="cache">
+  <span class="sec-num">§ 8</span>
+  <h2>Cache &amp; social-graph serving</h2>
+  <p>At social-network read volumes, the database is protected by a large distributed cache. We run two complementary caching layers.</p>
+  <h4>Look-aside object cache</h4>
+  <p>A fleet-wide <strong>Memcached/Redis tier</strong> holds rendered fragments, session data, and hot rows, keyed and distributed by consistent hashing so that adding or removing a cache node only remaps its neighborhood of keys. The scaling patterns here follow Facebook's published Memcache work [3]: lease tokens to prevent thundering-herd stampedes on a cold key, and careful invalidation on write. Hot keys are replicated across several cache nodes to spread load and survive a node loss.</p>
+  <h4>Graph-aware serving layer</h4>
+  <p>The social graph — users, edges (friend/follow), and the objects hung off them (posts, likes, comments) — is the core data structure and the hottest read path. We front the sharded database with a <strong>graph cache</strong> in the spirit of Facebook's TAO [1]: a write-through, read-optimized layer that understands objects and associations, serves the overwhelming majority of graph reads from memory, and keeps its cache coherent with the underlying shards. This is what lets a friend-of-friend or feed query hit RAM instead of fanning out to disk.</p>
+  <div class="callout key">
+    <div class="h">Why the graph cache is its own layer</div>
+    <p>A generic key-value cache doesn't understand that "posts by users A follows, newest first" changes every time any followed user posts. A graph-aware layer can invalidate and materialize association lists intelligently, which is the difference between a feed query costing one memory read and costing a scatter-gather across every shard.</p>
+  </div>
+</section>
+
+<!-- ============ 9 ============ -->
+<section id="data">
+  <span class="sec-num">§ 9</span>
+  <h2>Data tier</h2>
+  <p>The durable core — accounts, profiles, edges, posts, comments — is stored in a <strong>horizontally sharded relational database</strong>, sharded by user ID so that a given user's data and immediate graph co-locate on one shard. Both Facebook and MySpace scaled on sharded MySQL; the pattern is proven. Two implementation paths fit this architecture:</p>
+  <h4>Path A — Sharded MySQL under Vitess (recommended baseline)</h4>
+  <p><strong>Vitess</strong> [7] sits in front of a fleet of MySQL instances and provides sharding, query routing, connection pooling, online resharding, and topology management. Each shard is a replica set — one primary plus replicas, spread across racks and colos — with automated failover (semi-synchronous replication so a committed write survives a primary loss). This path is mature, well-understood operationally, and keeps the familiar relational model.</p>
+  <h4>Path B — Distributed SQL (Raft-native)</h4>
+  <p>Alternatively, a Raft-based distributed SQL store — CockroachDB, TiDB, or YugabyteDB — makes multi-colo replication, sharding, and failover intrinsic properties of the database rather than bolted-on. Each range is a Raft group replicated <code>2:2:1</code> across A:B:W, so surviving a site loss is automatic. This is architecturally cleaner against P2/P3/P4, at the cost of a younger operational surface and the need to respect quorum latency on writes. It is also the path that most directly consumes the witness site from §4.</p>
+  <p>Either way, the invariants hold: shards are replicated across failure domains, writes for a shard are owned by one colo, no shard has a single point of failure, and the fleet's identical nodes host the replicas.</p>
+</section>
+
+<!-- ============ 10 ============ -->
+<section id="storage">
+  <span class="sec-num">§ 10</span>
+  <h2>Object &amp; media storage</h2>
+  <p>Photos, video, and — given the MySpace-style music focus — audio tracks are the largest data class by volume and the most bandwidth-hungry to serve. Storing billions of small-to-medium blobs efficiently, and the petabytes of media behind them affordably, is its own problem — and the one tier where all-flash economics stop making sense. This tier is therefore explicitly <strong>temperature-tiered</strong>: a fast flash tier for hot and metadata-heavy access, and a dense spinning-disk tier, managed by ZFS, for the warm and cold bulk that dominates capacity.</p>
+
+  <h4>A temperature hierarchy</h4>
+  <p>Media access is heavily skewed: a small, recently-uploaded or currently-trending set is read constantly, while the long tail — most of the archive by volume — is touched rarely. We map that skew onto three physical tiers, all present on every R1 node:</p>
+  <ul>
+    <li><strong>Tier 0 — RAM (ZFS ARC + app cache):</strong> the hottest working set and metadata in flight, served from memory.</li>
+    <li><strong>Tier 1 — NVMe flash:</strong> hot objects, the Haystack index, database WAL/DB, and — for the disk tier beneath it — ZFS metadata, small blocks, and the synchronous-write log. Everything latency- or IOPS-critical lives here.</li>
+    <li><strong>Tier 2 — HDD capacity:</strong> the warm and cold bulk — the long tail of photos and the mass of video and audio — at roughly one-fifth the cost per terabyte of flash.</li>
+  </ul>
+  <p>Objects are written hot to flash and <strong>age down</strong> to the disk tier as their access temperature falls; a re-heated object is re-promoted or simply served from the delivery cache (below). Tiering is a placement policy over the object store, not a manual migration chore.</p>
+
+  <h4>Substrate — Ceph / RADOS with device classes</h4>
+  <p>The distributed substrate remains <strong>Ceph</strong> [4], but its OSDs now span both media. Ceph tags each OSD with a <strong>device class</strong> — <code>nvme</code> for the flash tier, <code>hdd</code> for the disk tier — and CRUSH rules target each pool at a class, so hot replicated pools and indexes land on flash while warm/cold pools land on disk. CRUSH still places data pseudo-randomly but <em>deterministically</em>, with full awareness of the failure hierarchy — spreading copies across racks and colos and self-healing when a disk or node dies, all without a central metadata bottleneck. The bulk warm/cold pools use <strong>erasure coding</strong> (an 8+3 stripe: 11 fragments, any 8 reconstruct the object) on the disk tier for roughly 1.4× storage overhead instead of 3× replication, spread so that losing a rack — or a colo — loses no object. This cross-node erasure code is the design's <em>only</em> bulk-redundancy layer.</p>
+
+  <h4>The capacity tier — ZFS on spinning disk</h4>
+  <p>Spinning disk is dense and cheap but slow at random access, and its silent-corruption rate matters when data sits untouched for years. We therefore manage each node's HDDs with <strong>ZFS</strong> [11], which turns a shelf of slow disks into a checksummed, flash-accelerated capacity pool:</p>
+  <ul>
+    <li><strong>Flash-accelerated metadata &amp; small IO.</strong> A mirrored slice of the node's NVMe serves as a ZFS <em>special vdev</em> — all filesystem metadata, and any block below a tunable threshold (e.g. 64&nbsp;KB), are placed on flash automatically — alongside a <em>SLOG</em> for low-latency synchronous writes and an optional <em>L2ARC</em> read cache. The result is HDD $/TB with flash latency on exactly the operations spinning disk is worst at: metadata lookups, small-object reads, and sync commits.</li>
+    <li><strong>End-to-end integrity.</strong> Every block is checksummed and periodic <em>scrubs</em> catch bit-rot before it spreads. When ZFS detects a bad block on a single-disk OSD it cannot repair locally, it fails the read and Ceph reconstructs the object from another erasure fragment — detection local, repair cluster-wide.</li>
+    <li><strong>Compression &amp; snapshots.</strong> Transparent <code>lz4</code>/<code>zstd</code> compression reclaims capacity at negligible CPU cost, and copy-on-write snapshots make cheap, consistent backup and <code>zfs&nbsp;send</code> replication targets.</li>
+  </ul>
+
+  <div class="callout key">
+    <div class="h">Redundancy lives in exactly one place</div>
+    <p>Because Ceph already erasure-codes every object 8+3 <em>across</em> nodes, racks, and colos, the HDDs are handed to ZFS as <strong>single-disk data vdevs — no local raidz</strong>. Nesting node-local parity beneath a cross-node erasure code would pay for redundancy twice and waste capacity; a lost disk or node is simply reconstructed by Ceph from surviving fragments, exactly as in v0.1. The one component that <em>must</em> be locally redundant is the NVMe <strong>special vdev</strong> — lose it and the pool is gone — so it is always mirrored. Bulk redundancy is Ceph's; local integrity and tiering are ZFS's; the two never overlap.</p>
+  </div>
+
+  <figure>
+    <div class="fig-frame">
+      <svg viewBox="0 0 760 330" role="img" aria-label="Per-node storage tiers: RAM ARC on top, an NVMe flash tier serving as ZFS special vdev, SLOG and L2ARC in the middle, and a wide HDD capacity tier at the bottom, with data aging down as it cools and hot reads promoting back up.">
+        <defs>
+          <marker id="tar" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#48525E"/></marker>
+          <linearGradient id="temp" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#A83232"/><stop offset="1" stop-color="#1E5F8C"/>
+          </linearGradient>
+          <style>
+            .lbl{font-family:ui-monospace,Menlo,monospace;font-size:12px;fill:#141A21}
+            .sub{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;fill:#48525E}
+            .cap{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#1E5F8C}
+          </style>
+        </defs>
+
+        <!-- temperature axis -->
+        <rect x="30" y="48" width="8" height="252" rx="4" fill="url(#temp)"/>
+        <text x="34" y="42" text-anchor="middle" class="sub">hot</text>
+        <text x="34" y="316" text-anchor="middle" class="sub">cold</text>
+
+        <!-- Tier 0 RAM -->
+        <rect x="70" y="48" width="530" height="36" rx="4" fill="#ECF1F6" stroke="#1E5F8C"/>
+        <text x="82" y="70" class="cap">TIER 0 · RAM</text>
+        <text x="588" y="70" text-anchor="end" class="sub">ZFS ARC + app cache · hottest working set</text>
+
+        <!-- Tier 1 NVMe flash -->
+        <rect x="70" y="96" width="530" height="82" rx="4" fill="#EAF1F7" stroke="#1E5F8C"/>
+        <text x="82" y="116" class="cap">TIER 1 · NVMe flash  (~15 TB)</text>
+        <rect x="82" y="126" width="118" height="42" rx="3" fill="#FFFFFF" stroke="#9FBCD3"/>
+        <text x="141" y="143" text-anchor="middle" class="sub">special vdev</text>
+        <text x="141" y="158" text-anchor="middle" class="sub">meta + small blk</text>
+        <rect x="210" y="126" width="118" height="42" rx="3" fill="#FFFFFF" stroke="#9FBCD3"/>
+        <text x="269" y="143" text-anchor="middle" class="sub">SLOG</text>
+        <text x="269" y="158" text-anchor="middle" class="sub">sync-write log</text>
+        <rect x="338" y="126" width="118" height="42" rx="3" fill="#FFFFFF" stroke="#9FBCD3"/>
+        <text x="397" y="143" text-anchor="middle" class="sub">L2ARC</text>
+        <text x="397" y="158" text-anchor="middle" class="sub">read cache</text>
+        <rect x="466" y="126" width="122" height="42" rx="3" fill="#FFFFFF" stroke="#9FBCD3"/>
+        <text x="527" y="143" text-anchor="middle" class="sub">hot OSD</text>
+        <text x="527" y="158" text-anchor="middle" class="sub">+ WAL/DB</text>
+
+        <!-- Tier 2 HDD capacity -->
+        <rect x="70" y="190" width="530" height="110" rx="4" fill="#FFFFFF" stroke="#1E5F8C"/>
+        <text x="82" y="210" class="cap">TIER 2 · HDD capacity  (~288 TB raw)</text>
+        <text x="588" y="210" text-anchor="end" class="sub">single-disk vdevs · Ceph EC 8+3 across nodes</text>
+        <g>
+          <rect x="84" y="222" width="36" height="50" rx="2" fill="#F1F5F9" stroke="#B9C6D3"/>
+          <rect x="126" y="222" width="36" height="50" rx="2" fill="#F1F5F9" stroke="#B9C6D3"/>
+          <rect x="168" y="222" width="36" height="50" rx="2" fill="#F1F5F9" stroke="#B9C6D3"/>
+          <rect x="210" y="222" width="36" height="50" rx="2" fill="#F1F5F9" stroke="#B9C6D3"/>
+          <rect x="252" y="222" width="36" height="50" rx="2" fill="#F1F5F9" stroke="#B9C6D3"/>
+          <rect x="294" y="222" width="36" height="50" rx="2" fill="#F1F5F9" stroke="#B9C6D3"/>
+          <rect x="336" y="222" width="36" height="50" rx="2" fill="#F1F5F9" stroke="#B9C6D3"/>
+          <rect x="378" y="222" width="36" height="50" rx="2" fill="#F1F5F9" stroke="#B9C6D3"/>
+          <rect x="420" y="222" width="36" height="50" rx="2" fill="#F1F5F9" stroke="#B9C6D3"/>
+          <rect x="462" y="222" width="36" height="50" rx="2" fill="#F1F5F9" stroke="#B9C6D3"/>
+          <rect x="504" y="222" width="36" height="50" rx="2" fill="#F1F5F9" stroke="#B9C6D3"/>
+          <rect x="546" y="222" width="36" height="50" rx="2" fill="#F1F5F9" stroke="#B9C6D3"/>
+        </g>
+        <text x="82" y="290" class="sub">12 × 24 TB · redundancy is Ceph's, not local raidz</text>
+
+        <!-- age-down / promote arrows -->
+        <line x1="650" y1="150" x2="650" y2="250" stroke="#1E5F8C" stroke-width="1.4" marker-end="url(#tar)"/>
+        <text x="650" y="140" text-anchor="middle" class="sub">age-down</text>
+        <line x1="712" y1="250" x2="712" y2="150" stroke="#A83232" stroke-width="1.4" marker-end="url(#tar)"/>
+        <text x="712" y="140" text-anchor="middle" class="sub">promote</text>
+        <text x="681" y="272" text-anchor="middle" class="sub">by access temp</text>
+      </svg>
+    </div>
+    <figcaption><b>Figure 3.</b> The three storage tiers present on every node. ZFS keeps metadata, small blocks, and sync writes on the NVMe special vdev / SLOG while bulk data rests on HDD; objects age down as they cool and are promoted when re-read. Cross-node redundancy stays with Ceph's erasure code (Figure 4).</figcaption>
+  </figure>
+
+  <h4>Hot media — a Haystack-style blob store</h4>
+  <p>For the hottest, most numerous small objects (profile photos, thumbnails), a generic object store spends too much metadata and too many IOPS per tiny file. Following Facebook's Haystack design [2], hot media are packed into large append-only volumes with a compact in-memory index, collapsing per-photo metadata to a few bytes and turning a read into a single seek. This runs as a service on the flash tier of the same nodes; as volumes cool they are demoted to the ZFS-backed disk tier, while Ceph erasure coding holds the durable copy throughout.</p>
+
+  <figure>
+    <div class="fig-frame">
+      <svg viewBox="0 0 760 260" role="img" aria-label="An object erasure-coded into fragments spread across racks and colos so any single failure domain can be lost.">
+        <defs><style>
+          .lbl{font-family:ui-monospace,Menlo,monospace;font-size:12px;fill:#141A21}
+          .sub{font-family:ui-monospace,Menlo,monospace;font-size:10px;fill:#48525E}
+          .cap{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#1E5F8C}
+          .ok{fill:#2E7D5B}
+        </style></defs>
+
+        <rect x="30" y="24" width="150" height="40" rx="4" fill="#ECF1F6" stroke="#1E5F8C"/>
+        <text x="105" y="42" text-anchor="middle" class="lbl">object (track.mp3)</text>
+        <text x="105" y="57" text-anchor="middle" class="sub">→ CRUSH placement</text>
+
+        <line x1="180" y1="44" x2="215" y2="44" stroke="#48525E"/>
+        <text x="300" y="30" class="cap">erasure code 8 + 3  (any 8 of 11 reconstruct)</text>
+
+        <!-- colo A group -->
+        <rect x="215" y="70" width="250" height="80" rx="4" fill="#FFFFFF" stroke="#1E5F8C" stroke-dasharray="4 3"/>
+        <text x="225" y="88" class="cap">COLO A</text>
+        <g class="ok">
+        <rect x="225" y="96" width="34" height="30" rx="2" fill="#E7F1EC" stroke="#2E7D5B"/><text x="242" y="115" text-anchor="middle" class="sub">f0</text>
+        <rect x="263" y="96" width="34" height="30" rx="2" fill="#E7F1EC" stroke="#2E7D5B"/><text x="280" y="115" text-anchor="middle" class="sub">f1</text>
+        <rect x="301" y="96" width="34" height="30" rx="2" fill="#E7F1EC" stroke="#2E7D5B"/><text x="318" y="115" text-anchor="middle" class="sub">f2</text>
+        <rect x="339" y="96" width="34" height="30" rx="2" fill="#E7F1EC" stroke="#2E7D5B"/><text x="356" y="115" text-anchor="middle" class="sub">f3</text>
+        <rect x="377" y="96" width="34" height="30" rx="2" fill="#E7F1EC" stroke="#2E7D5B"/><text x="394" y="115" text-anchor="middle" class="sub">p0</text>
+        </g>
+        <text x="225" y="142" class="sub">spread across racks →</text>
+
+        <!-- colo B group -->
+        <rect x="490" y="70" width="240" height="80" rx="4" fill="#FFFFFF" stroke="#1E5F8C" stroke-dasharray="4 3"/>
+        <text x="500" y="88" class="cap">COLO B</text>
+        <g class="ok">
+        <rect x="500" y="96" width="34" height="30" rx="2" fill="#E7F1EC" stroke="#2E7D5B"/><text x="517" y="115" text-anchor="middle" class="sub">f4</text>
+        <rect x="538" y="96" width="34" height="30" rx="2" fill="#E7F1EC" stroke="#2E7D5B"/><text x="555" y="115" text-anchor="middle" class="sub">f5</text>
+        <rect x="576" y="96" width="34" height="30" rx="2" fill="#E7F1EC" stroke="#2E7D5B"/><text x="593" y="115" text-anchor="middle" class="sub">f6</text>
+        <rect x="614" y="96" width="34" height="30" rx="2" fill="#E7F1EC" stroke="#2E7D5B"/><text x="631" y="115" text-anchor="middle" class="sub">f7</text>
+        <rect x="652" y="96" width="34" height="30" rx="2" fill="#E7F1EC" stroke="#2E7D5B"/><text x="669" y="115" text-anchor="middle" class="sub">p1</text>
+        <rect x="690" y="96" width="34" height="30" rx="2" fill="#E7F1EC" stroke="#2E7D5B"/><text x="707" y="115" text-anchor="middle" class="sub">p2</text>
+        </g>
+
+        <text x="30" y="185" class="lbl">Failure tolerance</text>
+        <text x="30" y="205" class="sub">• lose any 3 fragments  → object still readable</text>
+        <text x="30" y="221" class="sub">• lose a full rack       → &lt; 3 fragments affected by design</text>
+        <text x="30" y="237" class="sub">• lose an entire colo    → remaining site holds ≥ 8 fragments → readable</text>
+      </svg>
+    </div>
+    <figcaption><b>Figure 4.</b> A single warm/cold object on the HDD capacity tier, erasure-coded and placed by CRUSH so that no rack holds enough fragments to matter and either colo alone still holds ≥ 8 of 11 — surviving a whole-site loss at ~1.4× overhead. Each fragment rests on a ZFS-managed disk vdev.</figcaption>
+  </figure>
+
+  <h4>Delivery</h4>
+  <p>In front of storage sits a <strong>caching/edge tier</strong> — Varnish/nginx caching nodes at each colo and, optionally, a handful of additional POPs — so that popular media is served from cache close to the user and never re-reads the durable store. This owned edge can be augmented by a commercial CDN for global reach without changing the origin design.</p>
+</section>
+
+<!-- ============ 11 ============ -->
+<section id="stream">
+  <span class="sec-num">§ 11</span>
+  <h2>Event stream &amp; feed fan-out</h2>
+  <p>Writes — a post, a like, a follow — are appended to a <strong>distributed log</strong> (Apache Kafka, or Redpanda for a lighter footprint) whose partitions are replicated across nodes and colos. The log is the backbone for everything asynchronous: notifications, feed generation, search indexing, and analytics all consume from it, decoupled from the write path so a slow consumer never blocks a user.</p>
+  <h4>The feed problem — hybrid fan-out</h4>
+  <p>Generating each user's home feed is the signature hard problem of a social network, and it is a choice between two strategies:</p>
+  <ul>
+    <li><strong>Fan-out-on-write (push):</strong> when a user posts, workers push the post reference into every follower's precomputed feed. Reads are then cheap. But a user with millions of followers creates a write storm.</li>
+    <li><strong>Fan-out-on-read (pull):</strong> a feed is assembled at read time by querying the accounts a user follows. Writes are cheap; reads for users following many accounts are expensive.</li>
+  </ul>
+  <p>We use a <strong>hybrid</strong>: push for ordinary accounts (the common case, cheap reads), and pull for high-fan-out "celebrity" accounts whose posts are merged in at read time. This bounds both the write amplification of push and the read cost of pull. Feed workers consume the event log and write per-user feed lists into the cache tier, backed by the data tier.</p>
+</section>
+
+<!-- ============ 12 ============ -->
+<section id="search">
+  <span class="sec-num">§ 12</span>
+  <h2>Search &amp; coordination</h2>
+  <h4>Search</h4>
+  <p>User, post, and tag search runs on a <strong>distributed OpenSearch/Elasticsearch cluster</strong> — indices sharded and replicated across nodes and colos, fed from the event log so the index trails writes by seconds. Search is a read-scaled service that never sits on the primary write path.</p>
+  <h4>Coordination &amp; service discovery</h4>
+  <p>Cluster membership, configuration, leader election, and service discovery run on a <strong>quorum store</strong> — etcd or ZooKeeper — deployed, like every other consensus system, as <code>2:2:1</code> across A:B:W. Service discovery and health checking (Consul, or the scheduler's native mechanism) let the stateless tiers find healthy backends without hardcoded addresses, which is what allows any node to be reimaged or moved without touching its dependents.</p>
+</section>
+
+<!-- ============ 13 ============ -->
+<section id="ha">
+  <span class="sec-num">§ 13</span>
+  <h2>High-availability / fault-tolerance matrix</h2>
+  <p>Each layer earns its resilience independently. The table summarizes the redundancy mechanism and the largest failure domain each layer survives without user-visible outage.</p>
+  <div class="tbl-scroll">
+    <table class="data">
+      <caption>Table 1 — Per-layer resilience</caption>
+      <thead>
+        <tr><th>Layer</th><th>Distribution mechanism</th><th>Survives node</th><th>Survives rack</th><th>Survives colo</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Edge / DNS</td><td>BGP anycast + GeoDNS</td><td><span class="pill ok">yes</span></td><td><span class="pill ok">yes</span></td><td><span class="pill ok">yes</span></td></tr>
+        <tr><td>L4 load balancer</td><td>ECMP + consistent hash</td><td><span class="pill ok">yes</span></td><td><span class="pill ok">yes</span></td><td><span class="pill ok">yes</span></td></tr>
+        <tr><td>L7 proxy</td><td>Health-checked pool</td><td><span class="pill ok">yes</span></td><td><span class="pill ok">yes</span></td><td><span class="pill ok">yes</span></td></tr>
+        <tr><td>App tier</td><td>Stateless, scheduler-managed</td><td><span class="pill ok">yes</span></td><td><span class="pill ok">yes</span></td><td><span class="pill ok">yes</span></td></tr>
+        <tr><td>Cache / graph</td><td>Consistent hash + hot-key replicas</td><td><span class="pill ok">yes</span></td><td><span class="pill ok">yes</span></td><td><span class="pill warn">degraded*</span></td></tr>
+        <tr><td>Data tier</td><td>Replica sets / Raft groups, 2:2:1</td><td><span class="pill ok">yes</span></td><td><span class="pill ok">yes</span></td><td><span class="pill ok">yes</span></td></tr>
+        <tr><td>Object / media</td><td>CRUSH + EC 8+3 · flash/HDD tiers (ZFS)</td><td><span class="pill ok">yes</span></td><td><span class="pill ok">yes</span></td><td><span class="pill ok">yes</span></td></tr>
+        <tr><td>Event log</td><td>Replicated partitions</td><td><span class="pill ok">yes</span></td><td><span class="pill ok">yes</span></td><td><span class="pill ok">yes</span></td></tr>
+        <tr><td>Search</td><td>Sharded + replicated indices</td><td><span class="pill ok">yes</span></td><td><span class="pill ok">yes</span></td><td><span class="pill ok">yes</span></td></tr>
+        <tr><td>Coordination</td><td>etcd/ZK quorum, 2:2:1</td><td><span class="pill ok">yes</span></td><td><span class="pill ok">yes</span></td><td><span class="pill ok">yes</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="callout"><span class="h">* Cache on colo loss</span> Losing a colo cold-evicts that site's cache working set; the survivor serves correctly but with a temporary latency spike and elevated database load as caches refill. This is a performance event, not an outage — provided the data tier was sized to absorb the refill (see §14).</p>
+</section>
+
+<!-- ============ 14 ============ -->
+<section id="capacity">
+  <span class="sec-num">§ 14</span>
+  <h2>Capacity planning under colo loss</h2>
+  <p>Active-active across two colos hides an uncomfortable arithmetic: to serve full load after losing one of two colos, <strong>each colo must be able to carry 100% of traffic</strong> — i.e., the pair runs at ≤ 50% utilization in steady state. That is effectively 2× the serving capacity you'd need if you never had to fail over.</p>
+  <div class="callout key">
+    <div class="h">A third production site changes the math</div>
+    <p>With three equal production colos, surviving one loss requires each to carry only 50% of total, so the fleet runs at ≤ 67% utilization — a +50% overhead instead of +100%. There is a real capital-efficiency argument for eventually promoting the witness into a full third colo as the platform grows. The 2-colo-plus-witness design is the right <em>starting</em> point (it solves quorum cheaply); three production colos is the right <em>scaling</em> destination.</p>
+  </div>
+  <p>Practical planning rules for this design:</p>
+  <ul>
+    <li><strong>Serving tiers (app, LB, cache):</strong> provision so either colo alone meets peak. Accept the 50% steady-state ceiling, or run hotter and accept graceful degradation (shed non-essential modules) during a failover.</li>
+    <li><strong>Data tier:</strong> size the surviving colo's replicas to absorb both the redirected read traffic <em>and</em> the cache-refill surge; this is often the binding constraint after a colo loss.</li>
+    <li><strong>Storage:</strong> budget erasure-coding overhead (~1.4×) on the disk tier plus enough free space that a full node's fragments can rebuild onto survivors without filling any pool; size the NVMe special vdev for the metadata + small-block footprint (typically a low-single-digit percentage of raw capacity) so it never spills to disk; and note that resilvering a 24 TB HDD is hours of I/O — Ceph parallelizes the rebuild across many nodes, but the free-space and IOPS headroom must exist for it.</li>
+    <li><strong>Sparing:</strong> keep a cold-spare pool sized to expected concurrent failures plus lead time for replacements; because there is one SKU, this pool covers every tier at once.</li>
+  </ul>
+</section>
+
+<!-- ============ 15 ============ -->
+<section id="failure">
+  <span class="sec-num">§ 15</span>
+  <h2>Failure walkthroughs</h2>
+  <h4>A disk fails</h4>
+  <p>Ceph detects the dead OSD, marks it out, and re-replicates or reconstructs its data from surviving fragments onto other nodes per the CRUSH map. No object becomes unavailable; the only effect is background rebuild I/O. The physical disk is swapped at leisure.</p>
+  <h4>A node fails</h4>
+  <p>The scheduler notices the missing node and reschedules its stateless workloads elsewhere within seconds. Any stateful role it held (a DB replica, a cache instance, OSDs) was already replicated; the data tier promotes a replica if it was a primary, and storage rebuilds the lost fragments. The node is reimaged or pulled and replaced with a cold spare — same part number.</p>
+  <h4>A rack fails (ToR or PDU)</h4>
+  <p>Because replica sets and erasure stripes never place a majority of copies in one rack, every affected shard and object still has a serving copy. Traffic and rebuild shift to other racks; capacity drops by one rack's worth until it returns. N+1 rack provisioning absorbs this.</p>
+  <h4>A colo fails</h4>
+  <p>The lost colo withdraws its anycast announcement; users reconverge to the survivor in seconds. Quorum systems retain a majority (survivor + witness = 3 of 5) and elect new leaders for any shards the dead colo owned. The survivor serves all traffic — cold caches refill under elevated DB load for a few minutes, then latency normalizes. This is a capacity and latency event, not an outage, exactly because §14's headroom exists.</p>
+  <h4>The A–B link partitions (both colos up, cut off from each other)</h4>
+  <p>The witness is the tiebreaker. Whichever production colo can still reach W forms a majority and keeps serving as the write authority; the isolated colo, unable to reach a majority, steps its quorum-bearing roles down to read-only rather than accept conflicting writes. When the link heals, the stepped-down side rejoins and catches up. <strong>This is precisely the scenario a two-site design cannot handle safely, and the reason the witness is non-negotiable.</strong></p>
+</section>
+
+<!-- ============ 16 ============ -->
+<section id="ops">
+  <span class="sec-num">§ 16</span>
+  <h2>Provisioning &amp; observability</h2>
+  <h4>Provisioning</h4>
+  <p>Bare-metal lifecycle is netboot-driven: a bare-metal provisioner (Tinkerbell, MAAS, or Metal³) discovers a powered-on node via its BMC, installs an immutable OS image, and enrolls it in the scheduler. Configuration is declarative and version-controlled (Terraform for topology, Ansible for any host-level config); there is no interactive machine setup and therefore no configuration drift. A machine is "cattle" — described entirely by code, replaceable by reimage.</p>
+  <h4>Observability</h4>
+  <p>The fleet is instrumented uniformly: <strong>metrics</strong> via Prometheus with a long-term, cross-colo store (Thanos, Mimir, or VictoriaMetrics); <strong>logs</strong> via Loki or an ELK stack; <strong>traces</strong> via OpenTelemetry into Jaeger or Tempo; <strong>alerting</strong> via Alertmanager. Because roles are software overlays, dashboards are keyed by <em>service</em>, not by machine — you watch "the cache tier," not "server 47." Health checks feed both the load balancers (eject a bad backend) and the scheduler (reschedule off a bad node), closing the loop from detection to remediation without a human in the fast path.</p>
+</section>
+
+<!-- ============ 17 ============ -->
+<section id="sec">
+  <span class="sec-num">§ 17</span>
+  <h2>Security &amp; privacy</h2>
+  <p>The platform's product promise is privacy-first and ad-free, so privacy is an architectural property, not a policy statement:</p>
+  <ul>
+    <li><strong>No third-party trackers or data brokerage</strong> anywhere in the request path — there is nothing to embed because there is no ad or data-sale business to serve.</li>
+    <li><strong>Encryption in transit</strong> everywhere: TLS to users, mutual TLS between internal services (a service mesh or Consul Connect issues and rotates the certificates).</li>
+    <li><strong>Encryption at rest</strong> at the storage layer for durable media and database volumes.</li>
+    <li><strong>Data minimization &amp; portability</strong>: collect only what the product needs, and provide genuine export — a differentiator this audience actively checks for.</li>
+    <li><strong>Segmentation</strong>: the public edge is isolated from data and storage tiers; only the app and proxy tiers bridge them, and secrets live in a dedicated manager (Vault) rather than on hosts.</li>
+    <li><strong>User-supplied HTML/CSS</strong> (the MySpace-style profile customization) is the single largest application-layer attack surface. It must be aggressively sandboxed — strict Content-Security-Policy, server-side sanitization, no arbitrary JavaScript, and a whitelist of embeddable media sources — to avoid re-creating the profile-injection and worm problems the original customizable networks suffered. This is an application concern layered above the infrastructure in this paper, but it is called out because it is where this particular product is most likely to be attacked.</li>
+  </ul>
+</section>
+
+<!-- ============ 18 ============ -->
+<section id="limits">
+  <span class="sec-num">§ 18</span>
+  <h2>Limitations &amp; future work</h2>
+  <ul>
+    <li><strong>Two colos are a starting point, not an end state.</strong> The witness solves correctness, but §14's 2× serving overhead is capital-inefficient; a third production colo is the natural next investment and improves both efficiency and blast radius.</li>
+    <li><strong>Homogeneity has a ceiling, now pushed further out.</strong> This revision folds a spinning-disk capacity tier into the one SKU (§2, §10), recovering most of the density a dedicated storage chassis would offer without a second part number. A purpose-built JBOD is still denser per U, so at extreme media scale a dedicated cold-storage SKU may eventually earn its place — but that decision is deferred far further than it was in v0.1.</li>
+    <li><strong>The hybrid storage stack adds moving parts.</strong> ZFS beneath Ceph costs some write amplification versus raw-device BlueStore; the ZFS ARC competes for RAM with cache and database roles on the same box (a scheduler placement constraint, §5); and large-HDD resilvers are slow — mitigated by keeping bulk redundancy in Ceph's cross-node erasure code rather than local raidz, but not eliminated.</li>
+    <li><strong>Celebrity fan-out</strong> remains the perennial social-scale hazard; the hybrid strategy bounds it but very large accounts still need care (rate limiting, dedicated read replicas for their association lists).</li>
+    <li><strong>Async cross-colo replication</strong> means a narrow window of un-replicated writes can be lost if a colo dies abruptly. Shards requiring stronger guarantees can opt into synchronous quorum writes at a latency cost; most social data does not need it.</li>
+    <li><strong>Bare metal shifts undifferentiated heavy lifting onto the operator.</strong> Hardware supply, RMA, DC remote-hands, and capacity lead times become your problem. This is the deliberate trade for cost control and data sovereignty; a hybrid burst-to-cloud path for demand spikes is worth keeping in reserve.</li>
+  </ul>
+  <p>The result is a system whose resilience comes not from any one clever component but from the same discipline applied at every layer: partition it, replicate it across failure domains, put it on an identical anonymous machine, and let software decide the rest.</p>
+</section>
+
+</main>
+</div>
+
+<footer>
+<div class="wrap">
+  <div class="refs">
+    <h4 style="margin-top:0">References</h4>
+    <ol>
+      <li>N. Bronson et al. "TAO: Facebook's Distributed Data Store for the Social Graph." <em>USENIX ATC</em>, 2013.</li>
+      <li>D. Beaver et al. "Finding a Needle in Haystack: Facebook's Photo Storage." <em>OSDI</em>, 2010.</li>
+      <li>R. Nishtala et al. "Scaling Memcache at Facebook." <em>NSDI</em>, 2013.</li>
+      <li>S. Weil et al. "Ceph: A Scalable, High-Performance Distributed File System" &amp; "CRUSH: Controlled, Scalable, Decentralized Placement of Replicated Data." <em>OSDI / SC</em>, 2006.</li>
+      <li>D. Eisenbud et al. "Maglev: A Fast and Reliable Software Network Load Balancer." <em>NSDI</em>, 2016.</li>
+      <li>D. Ongaro, J. Ousterhout. "In Search of an Understandable Consensus Algorithm (Raft)." <em>USENIX ATC</em>, 2014.</li>
+      <li>Vitess — Horizontal scaling of MySQL. CNCF project (origin: YouTube). <a href="https://vitess.io">vitess.io</a></li>
+      <li>G. DeCandia et al. "Dynamo: Amazon's Highly Available Key-value Store." <em>SOSP</em>, 2007.</li>
+      <li>A. Verma et al. "Large-scale cluster management at Google with Borg." <em>EuroSys</em>, 2015.</li>
+      <li>J. C. Corbett et al. "Spanner: Google's Globally-Distributed Database." <em>OSDI</em>, 2012.</li>
+      <li>OpenZFS — end-to-end checksums, the special allocation class, SLOG / L2ARC, and copy-on-write snapshots. <a href="https://openzfs.org">openzfs.org</a></li>
+    </ol>
+  </div>
+  <p class="colophon">
+    Working paper · v0.2 · July 2026 · bryanvine.github.io<br>
+    v0.2 — adds a tiered, ZFS-managed flash-and-disk storage substrate (hybrid R1 node, §2; storage tiers, §10).<br>
+    Reference architecture for discussion. Product names are illustrative of a class of tool, not endorsements.<br>
+    Companion product brief: a privacy-first, ad-free, subscription-funded social network for underground / alternative scenes.
+  </p>
+</div>
+</footer>
+
+</body>
+</html>
