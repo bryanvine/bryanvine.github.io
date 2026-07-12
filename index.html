@@ -89,6 +89,22 @@
 
 <div id="papers">
 
+  <a class="card" data-date="2026-07-12" data-topic="LLM Training"
+     href="https://bryanvine.github.io/free-transformer/free-bits.html">
+    <p class="ptitle">Free Bits Aren't Free: An Independent Replication of the Free Transformer, with Error Bars</p>
+    <p class="pmeta"><span class="tag">Latent-variable LLMs</span><span class="tag">Replication</span><span class="tag">free-transformer · Paper 1</span><span class="date">Jul 2026</span></p>
+    <p class="pdesc">Nine months after FAIR published the Free Transformer — a GPT that samples a latent
+    "decision" before it generates — no public independent replication existed. This is one, at 51M–124M
+    parameters with <strong>3 seeds on every claim</strong>, run on an RTX&nbsp;5060, an RTX&nbsp;4080&nbsp;SUPER, and an
+    Intel Arc&nbsp;Pro&nbsp;B70 (plausibly the <strong>first documented LLM pretraining on Arc B-series</strong> silicon).
+    The architecture's logged loss flatters it by its full KL — honest accounting shows a
+    <strong>≈0.19-nat tax (~21% perplexity)</strong> whose marginal cost collapses near κ=1, with KL recovery
+    improving 55%→69% from 51M→124M: a quantitative bridge to the paper's large-scale gains. Posterior
+    collapse turns out to be a <strong>seed lottery, not a fate</strong> — two latents died mid-training and
+    spontaneously resurrected — and one of our own headline findings dissolved into seed noise within
+    24 hours, which is precisely the point. <span class="arrow">Read →</span></p>
+  </a>
+
   <a class="card" data-date="2026-07-10" data-topic="Systems Architecture"
      href="https://bryanvine.github.io/bare-metal-social/">
     <p class="ptitle">A Bare-Metal, Homogeneous-Node Architecture for a Distributed Social Network</p>
