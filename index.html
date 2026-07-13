@@ -89,6 +89,21 @@
 
 <div id="papers">
 
+  <a class="card" data-date="2026-07-13" data-topic="LLM Training"
+     href="https://bryanvine.github.io/free-transformer/latent.html">
+    <p class="ptitle">The Decision That Wasn't: What the Free Transformer's Latent Actually Learns</p>
+    <p class="pmeta"><span class="tag">Latent-variable LLMs</span><span class="tag">Interpretability</span><span class="tag">free-transformer · Paper 2</span><span class="date">Jul 2026</span></p>
+    <p class="pdesc">Opening up the surviving latents from Paper 1 with per-bit information accounting,
+    single-bit ablations, and a controlled steering experiment. The free-bits budget <strong>quantizes into a
+    few soft channels</strong> (κ=0.5 → one of 16 bits; κ=1 → exactly three at ~0.33 bits each); a run that
+    died and resurrected mid-training carries the same information in a <strong>diffuse 8-channel code</strong> —
+    training history is written into the representation's structure. And the "decision before speaking"
+    story fails three independent tests at 51M–124M: channels flip on 1–5-token timescales, correlate with
+    nothing nameable, and <strong>pinning the latent steers nothing</strong>. What survives is a per-token
+    side-channel — with a registered, falsifiable prediction for what must change at scale.
+    <span class="arrow">Read →</span></p>
+  </a>
+
   <a class="card" data-date="2026-07-12" data-topic="LLM Training"
      href="https://bryanvine.github.io/free-transformer/free-bits.html">
     <p class="ptitle">Free Bits Aren't Free: An Independent Replication of the Free Transformer, with Error Bars</p>
