@@ -89,6 +89,20 @@
 
 <div id="papers">
 
+  <a class="card" data-date="2026-07-30" data-topic="AI Tooling"
+     href="https://bryanvine.github.io/token-saver/">
+    <p class="ptitle">Where Claude Code Tokens Actually Go — and a Small Open-Source Kit That Targets the Right 95%</p>
+    <p class="pmeta"><span class="tag">Agent cost</span><span class="tag">Open source</span><span class="tag">token-saver</span><span class="date">Jul 2026</span></p>
+    <p class="pdesc">Auditing my own week of Claude Code transcripts: <strong>92.6% of input tokens are reused
+    context served from the prompt cache</strong> — replicating the published 95.7% figure — while the tool
+    output that popular "compressor" hooks shrink is a rounding error (JetBrains measured one such tool
+    <em>raising</em> real cost 7.6%). <strong>token-saver</strong> is the levers that actually move the bill,
+    packaged: a skill enforcing scoped reads and append-only context, haiku/sonnet subagents so mechanical work
+    never runs at top-tier pricing, and a stdlib-only audit tool with cache-aware pricing (reads 0.1×, writes
+    1.25–2×) that reads the usage blocks Claude Code itself logs. Caching already saves me ~$3.1k/week;
+    the remaining lever is model mix. <span class="arrow">Read →</span></p>
+  </a>
+
   <a class="card" data-date="2026-07-13" data-topic="LLM Training"
      href="https://bryanvine.github.io/free-transformer/latent.html">
     <p class="ptitle">The Decision That Wasn't: What the Free Transformer's Latent Actually Learns</p>
@@ -273,7 +287,7 @@
   var cards = Array.prototype.slice.call(papers.querySelectorAll('.card'));
   var btnDate = document.getElementById('sort-date');
   var btnTopic = document.getElementById('sort-topic');
-  var TOPIC_ORDER = ['Quantitative ML', 'GPU / LLM Inference', 'Systems Architecture'];
+  var TOPIC_ORDER = ['Quantitative ML', 'GPU / LLM Inference', 'Systems Architecture', 'LLM Training', 'AI Tooling'];
   function clearHeaders(){
     Array.prototype.slice.call(papers.querySelectorAll('.group-label')).forEach(function(e){ e.remove(); });
   }

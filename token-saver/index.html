@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Where Claude Code Tokens Actually Go — and a Small Open-Source Kit That Targets the Right 95%</title>
+<meta name="description" content="92.6% of my Claude Code input tokens are reused context served from cache. token-saver is a skill, a cheap-model subagent pack, and a cache-aware audit tool that optimize the levers that actually move the bill.">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Where Claude Code Tokens Actually Go">
+<meta property="og:description" content="Output compression doesn't work (JetBrains measured it). Reused input context is ~95% of spend. token-saver: a skill + cheap-model subagents + a cache-aware audit tool.">
+<meta property="og:url" content="https://bryanvine.github.io/token-saver/">
+<meta name="twitter:card" content="summary">
+<style>
+  :root{ --ink:#1a1a1a; --muted:#5b6470; --rule:#e3e6ea; --accent:#1f6feb; --bg:#fdfdfc; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink);
+        font:17px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; }
+  .wrap{ max-width:760px; margin:0 auto; padding:56px 22px 96px; }
+  a{ color:var(--accent); text-decoration:none; } a:hover{ text-decoration:underline; }
+  .crumb{ font-size:14px; color:var(--muted); margin-bottom:26px; }
+  h1{ font-size:31px; line-height:1.22; letter-spacing:-0.02em; margin:0 0 10px; }
+  .meta{ font-size:14px; color:var(--muted); margin:0 0 34px; padding-bottom:22px; border-bottom:3px solid var(--ink); }
+  h2{ font-size:22px; margin:40px 0 12px; letter-spacing:-0.01em; }
+  p{ margin:0 0 16px; }
+  pre{ background:#0f172a; color:#dbe4f0; border-radius:10px; padding:16px 18px; overflow-x:auto;
+       font:13.5px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  code{ font:0.92em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; background:#eef1f5;
+        padding:1px 5px; border-radius:5px; }
+  pre code{ background:none; padding:0; }
+  table{ border-collapse:collapse; width:100%; margin:0 0 16px; font-size:15px; }
+  th,td{ text-align:left; padding:8px 10px; border-bottom:1px solid var(--rule); vertical-align:top; }
+  th{ font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
+  blockquote{ margin:0 0 16px; padding:2px 18px; border-left:3px solid var(--accent); color:#33373d; }
+  .callout{ background:#eef3fb; border:1px solid #d6e2f5; border-radius:10px; padding:14px 18px; margin:0 0 16px; font-size:15.5px; }
+  footer{ margin-top:56px; padding-top:18px; border-top:1px solid var(--rule); color:var(--muted); font-size:13.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<p class="crumb"><a href="../">← bryanvine.github.io</a></p>
+
+<h1>Where Claude Code Tokens Actually Go — and a Small Open-Source Kit That Targets the Right 95%</h1>
+<p class="meta">Bryan Vine · July 2026 · code: <a href="https://github.com/bryanvine/token-saver">github.com/bryanvine/token-saver</a></p>
+
+<p>I run a lot of Claude Code — dozens of projects, thousands of sessions, and a bill worth
+caring about. This month two write-ups landed that, taken together, say something most
+token-saving advice gets backwards. So I built (well, had Claude build) a small open-source
+kit around what the data actually shows, and pointed it at my own transcripts to check.</p>
+
+<h2>Two findings that should change how you think about agent token cost</h2>
+
+<p><strong>1. Nearly all spend is <em>reused input</em>.</strong>
+<a href="https://natesnewsletter.substack.com/p/reduce-ai-token-usage">Nate's analysis</a> of a
+3.77-billion-token day found 95.7% of it was input the model had already seen — earlier turns,
+standing instructions, tool definitions, files, command output — re-sent on every request.
+The context window is a ratchet: everything that enters it is billed again on every
+subsequent step of the session.</p>
+
+<p><strong>2. Compressing tool output doesn't help.</strong> JetBrains
+<a href="https://blog.jetbrains.com/ai/2026/07/rtk-claude-code-token-savings/">measured RTK</a>,
+a popular hook that rewrites shell output into compact form ("60–90% less token consumption").
+RTK's own analytics claimed 96M tokens saved; actual billing went <em>up</em> 7.6% at low
+reasoning effort (p=0.004) and moved ±0% at high effort. The hook only touched ~3% of input
+tokens — Claude Code already truncates long outputs, and re-sent context is served from the
+prompt cache at a tenth of the fresh-input price, which the tool's counterfactual counter
+never accounted for.</p>
+
+<p>The lesson generalizes past one tool: <strong>optimizing bytes-per-tool-result attacks the
+small slice, and self-reported "tokens saved" counters measure a counterfactual, not a bill.</strong>
+The levers that actually move cost are (a) what enters the expensive main context at all,
+(b) which model tier does which work, and (c) whether the prompt cache stays warm.</p>
+
+<h2>token-saver</h2>
+
+<p><a href="https://github.com/bryanvine/token-saver">token-saver</a> is those three levers as
+installable pieces for any Claude Code setup — no proxy, no hook, no dependencies:</p>
+
+<table>
+<tr><th>Piece</th><th>What it does</th></tr>
+<tr><td><code>skills/token-saver</code></td><td>A skill that puts the session in a token diet:
+search-then-scoped-read (never whole-file dumps), filtered command output, batched tool calls,
+no re-reads, append-only context habits that keep the cache warm. Bounded by one rule from
+Nate's piece — <em>a token count is a trace, not a scoreboard</em>: nothing that risks a retry,
+because one retry costs more than the shortcut saved.</td></tr>
+<tr><td><code>agents/</code></td><td>Three subagents pinned to cheap models: <code>scout</code>
+(haiku — returns <code>path:line</code>, never contents), <code>reader</code> (sonnet — returns
+a digest, never a dump), <code>runner</code> (haiku — returns exit status + the failing lines,
+never the log). Raw material stays in the subagent's throwaway context; only conclusions enter
+the expensive main loop.</td></tr>
+<tr><td><code>rules/model-routing.md</code></td><td>A <code>CLAUDE.md</code> snippet making
+model routing a standing rule: subagents silently inherit the main-loop model unless you say
+otherwise, so a fan-out from an Opus- or Fable-tier session burns top-tier pricing on
+<code>grep</code> work by default. Haiku for mechanical, sonnet as the workhorse, opus for
+substantive engineering, top tier ≤1-in-10 and individually justifiable.</td></tr>
+<tr><td><code>bin/token-audit</code></td><td>A stdlib-only Python tool that reads the usage
+blocks Claude Code itself logs in <code>~/.claude/projects/</code> — real billing inputs, not
+counters. Cache-aware pricing (reads at 0.1×, 5-minute writes at 1.25×, 1-hour writes at 2×),
+per-model and per-session breakdown, reused-input share, and what the same traffic would have
+cost uncached.</td></tr>
+</table>
+
+<h2>Checking it against my own last seven days</h2>
+
+<pre><code>$ ./bin/token-audit --days 7
+
+model                    req    input   output  cache-rd  cache-wr      cost
+claude-fable-5          1210      21k     1.3M    196.0M      7.8M   $418.56
+claude-sonnet-5         2239       4k     6.9M     57.3M     28.8M   $293.64
+claude-opus-5           2146      12k     1.8M    286.3M      7.2M   $260.39
+claude-opus-4-8          242      447     220k     19.7M      1.1M    $26.08
+
+reused input (served from cache): 92.6% of all input tokens
+estimated cost:                   $998.66
+same traffic without caching:     $4,088.52  (caching saved ~$3,089.86)</code></pre>
+
+<p>Three things the trace says, plainly:</p>
+
+<p><strong>Reused input is 92.6% of my tokens</strong> — my own sessions replicate Nate's 95.7%
+almost exactly. Fresh input (the thing RTK-style compressors shrink) is a rounding error:
+21k tokens against 196M cache reads on the Fable tier.</p>
+
+<p><strong>The cache is doing more for my bill than any behavior change will</strong> —
+~$3,090/week of the counterfactual cost is already absorbed at 0.1× pricing. Which is exactly
+why the skill's most important rules are the boring ones about not churning context, and why
+any tool that rewrites what the model sees mid-session risks costing more than it saves.</p>
+
+<p><strong>The remaining lever is model mix.</strong> Fable at $10/$50 per MTok is 42% of my
+spend. Every mechanical search, summary, and test run that moves from the main loop to a
+haiku/sonnet subagent is billed at 10–30% of the rate <em>and</em> keeps its raw material out
+of the ratchet entirely — the one optimization that attacks both terms at once.</p>
+
+<h2>Try it</h2>
+
+<pre><code>git clone https://github.com/bryanvine/token-saver.git
+cd token-saver
+./install.sh          # symlinks into ~/.claude — skill, agents, audit tool
+./tests/run-tests.sh  # 19 checks: frontmatter, installer round-trip, pricing math
+./bin/token-audit     # your own last 30 days, from your own transcripts</code></pre>
+
+<div class="callout">Nothing leaves your machine — the audit reads local JSONL transcripts,
+does arithmetic, and prints. MIT licensed. If your reused-input share comes back very
+different from ~93%, I'd genuinely like to hear about it.</div>
+
+<footer>
+<p>© 2026 Bryan Vine · <a href="https://bryanvine.github.io/">bryanvine.github.io</a> ·
+<a href="https://github.com/bryanvine/token-saver">token-saver on GitHub</a></p>
+</footer>
+
+</div>
+</body>
+</html>
