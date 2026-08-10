@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deleting 62.5% of gpt-oss-120b's Experts: Full-Model Quality on a Single 32 GB GPU</title>
+<meta name="description" content="Task-calibrated expert pruning gets gpt-oss-120b from 61 GiB to 26 GiB at full-model quality on the target task. The failed first attempt is the useful finding: prompt-only calibration systematically deletes the experts that write the output format.">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Deleting 62.5% of gpt-oss-120b's Experts">
+<meta property="og:description" content="First expert-pruned gpt-oss-120b checkpoint: 48/128 experts, one 32 GB GPU, 128k context, full-model parity on a production scoring task. Prompt-only calibration fails by format collapse; generation-aware calibration fixes it.">
+<meta property="og:url" content="https://bryanvine.github.io/gpt-oss-pruning/">
+<meta name="twitter:card" content="summary">
+<style>
+  :root{ --ink:#1a1a1a; --muted:#5b6470; --rule:#e3e6ea; --accent:#1f6feb; --bg:#fdfdfc; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink);
+        font:17px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; }
+  .wrap{ max-width:760px; margin:0 auto; padding:56px 22px 96px; }
+  a{ color:var(--accent); text-decoration:none; } a:hover{ text-decoration:underline; }
+  .crumb{ font-size:14px; color:var(--muted); margin-bottom:26px; }
+  h1{ font-size:31px; line-height:1.22; letter-spacing:-0.02em; margin:0 0 10px; }
+  .meta{ font-size:14px; color:var(--muted); margin:0 0 34px; padding-bottom:22px; border-bottom:3px solid var(--ink); }
+  h2{ font-size:22px; margin:40px 0 12px; letter-spacing:-0.01em; }
+  p{ margin:0 0 16px; }
+  pre{ background:#0f172a; color:#dbe4f0; border-radius:10px; padding:16px 18px; overflow-x:auto;
+       font:13.5px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  code{ font:0.92em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; background:#eef1f5;
+        padding:1px 5px; border-radius:5px; }
+  pre code{ background:none; padding:0; }
+  .tablewrap{ overflow-x:auto; margin:0 0 16px; }
+  table{ border-collapse:collapse; width:100%; margin:0; font-size:15px; }
+  th,td{ text-align:left; padding:8px 10px; border-bottom:1px solid var(--rule); vertical-align:top; }
+  th{ font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
+  blockquote{ margin:0 0 16px; padding:2px 18px; border-left:3px solid var(--accent); color:#33373d; }
+  .callout{ background:#eef3fb; border:1px solid #d6e2f5; border-radius:10px; padding:14px 18px; margin:0 0 16px; font-size:15.5px; }
+  footer{ margin-top:56px; padding-top:18px; border-top:1px solid var(--rule); color:var(--muted); font-size:13.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<p class="crumb"><a href="../">← bryanvine.github.io</a></p>
+
+<h1>Deleting 62.5% of gpt-oss-120b's Experts: Full-Model Quality on a Single 32 GB GPU</h1>
+<p class="meta">Bryan Vine · August 2026 ·
+code: <a href="https://github.com/bryanvine/gpt-oss-subset">github.com/bryanvine/gpt-oss-subset</a> ·
+weights: <a href="https://huggingface.co/bryanvine/gpt-oss-120b-reap-48">gpt-oss-120b-reap-48</a></p>
+
+<p>My company, <a href="https://reach.jobs">reach.jobs</a>, scores resumes against job
+descriptions with <code>openai/gpt-oss-120b</code> behind vLLM: strict-JSON output, 6-10k
+token prompts, real hiring decisions downstream. At ~61 GiB of weights the full model needs
+shared server hardware. I wanted the exact same scorer on a single consumer-class card, so I
+removed 80 of the 128 experts in every layer and published, as far as I can tell, the
+<strong>first expert-pruned gpt-oss-120b checkpoint</strong>: 36 layers, 48 experts per
+layer, ~45B total parameters, 26.4 GB on disk, serving a 128k context window in stock vLLM
+on one 32 GB GPU, on both CUDA and Intel XPU.</p>
+
+<p>On a frozen 311-prompt replay of the production scoring workload it matches the model it
+was cut from. Cohen's kappa against stored production decisions: <strong>0.508</strong>
+(Intel Arc B70, XPU) and <strong>0.538</strong> (RTX 5090, CUDA), bracketing the full
+model's own run-to-run range of 0.485-0.527, at a 100% strict-JSON parse rate on both
+backends. The result took two attempts, and the failed one is the finding I most want other
+practitioners to take away.</p>
+
+<h2>Why pruning, not offloading</h2>
+
+<p>Three ways to fit a 61 GiB MoE on a 32 GB card. CPU offload
+(<code>llama.cpp --n-cpu-moe</code>) works but my best measured config costs ~46 seconds of
+prefill on an 8k prompt: a fallback, not a service. Dynamic expert paging dies on
+arithmetic: decode touches 4 experts x 36 layers = 144 experts per token, ~1.83 GB of
+weights with essentially no cache locality, which caps out around 14 tok/s on PCIe 4.0
+before any compute happens. Deleting experts, though, produces just a smaller checkpoint:
+no custom kernels, no runtime, no offload policy, and it serves in stock vLLM on any
+vendor's backend. gpt-oss makes this unusually clean, because the router softmaxes over
+only the selected top-4 logits, so survivors renormalize among themselves with no router
+surgery and no retraining.</p>
+
+<p>The cost is proving the smaller model still does the job. Prior art (Cerebras'
+<a href="https://arxiv.org/abs/2510.13999">REAP</a>, EASY-EP) de-risks removing 25-50% of
+experts. I wanted 62.5%, which nobody had validated, on a model nobody had pruned.</p>
+
+<h2>The instructive failure: prompt-only calibration deletes the experts that write</h2>
+
+<p>The obvious pipeline is: run <code>llama-imatrix</code> over a calibration corpus of real
+prompts, rank experts by routing frequency, keep the top 48 per layer. It looks great on
+paper: my corpus showed top-48 covering 89.1% of routing mass. It failed in three
+escalating ways. Uniform-48 scored far below gpt-oss-20b at twice the memory (0.641
+agreement with the full model against a 0.890 self-agreement ceiling, 87% parse).
+Uniform-32 broke the harmony output format outright. And the variable-budget variant that
+cut late layers hardest produced fluent, knowledgeable generations with a <strong>0% parse
+rate</strong>: it hadn't lost knowledge, it had lost a format.</p>
+
+<p>That symptom is the diagnosis. A prompt-only corpus records which experts fire while the
+model <em>reads</em>, and nothing about which fire while it <em>writes</em>: harmony
+channel markers, analysis-channel reasoning, JSON emission. The experts serving output
+format were invisible to the ranking and got deleted, worst in late layers, exactly where
+prompt-token routing looked most concentrated. The fix is cheap: replay your own model over
+the calibration prompts, keep the generation traces, and calibrate on
+prompt-plus-generation. I also switched the ranking criterion from routing frequency to
+REAP saliency (router gate weight times the L2 norm of the expert's output). The two
+changes together produce keep-sets that differ from the frequency-based ones by
+<strong>60% of their membership</strong>, with the disagreement concentrated in exactly the
+late layers where the format failures appeared.</p>
+
+<div class="callout">If you take one thing from this: routing-mass coverage arguments
+("the top-N experts carry X% of the mass, so pruning is safe") use the wrong distribution.
+Under REAP saliency the same top-48 carry only 56% of the mass. And a model pruned on
+prompt-only statistics fails by <em>format collapse</em>, not gradual quality decay, so it
+can look fine right up until every response is unparseable.</div>
+
+<h2>Results</h2>
+
+<div class="tablewrap">
+<table>
+<tr><th>model</th><th>parse</th><th>agree vs full-120b</th><th>kappa vs prod</th></tr>
+<tr><td>gpt-oss-120b, self-agreement ceiling</td><td>100%</td><td>0.890</td><td>0.485</td></tr>
+<tr><td>gpt-oss-120b, reference run</td><td>99.7%</td><td>(reference)</td><td>0.527</td></tr>
+<tr><td><strong>reap-48 (Arc B70, XPU)</strong></td><td><strong>100%</strong></td><td><strong>0.835</strong></td><td><strong>0.508</strong></td></tr>
+<tr><td><strong>reap-48 (RTX 5090, CUDA)</strong></td><td><strong>100%</strong></td><td>0.823</td><td><strong>0.538</strong></td></tr>
+<tr><td>reap-v2, variable budgets (B70)</td><td>100%</td><td>0.826</td><td>0.488</td></tr>
+<tr><td>gpt-oss-20b (B70)</td><td>100%</td><td>0.781</td><td>0.456</td></tr>
+<tr><td>subset-48, frequency-ranked (B70)</td><td>87%</td><td>0.641</td><td>0.149</td></tr>
+<tr><td>subset-32 / subset-v90, frequency-ranked</td><td colspan="2">format collapse</td><td>n/a</td></tr>
+</table>
+</div>
+
+<p>The honest bar in that table is the top row: run the <em>full</em> model twice through
+the identical harness and it agrees with itself on only 89.0% of decisions (kappa 0.776),
+because temperature-0 kernels are not deterministic and borderline cases flip. Any pruning
+result that reports agreement-with-the-original without
+agreement-of-the-original-with-itself is reporting an unknown mixture of quality loss and
+noise. Against that ceiling, reap-48's 0.835 is near-parity, and its kappa against real
+stored production decisions lands inside the full model's own self-consistency range on
+both backends. Two more replication checks: the same checkpoint serves on stock CUDA vLLM
+and stock Intel XPU vLLM with matching results, and the saliency computation re-run on a
+different host and GPU generation produces 99.2% identical keep-sets (rank correlation
+0.9973).</p>
+
+<h2>What's in the repo</h2>
+
+<p>Everything is Apache 2.0 at
+<a href="https://github.com/bryanvine/gpt-oss-subset">github.com/bryanvine/gpt-oss-subset</a>,
+with a full write-up in <code>docs/PAPER.md</code>:</p>
+
+<div class="tablewrap">
+<table>
+<tr><th>Artifact</th><th>Notes</th></tr>
+<tr><td><a href="https://huggingface.co/bryanvine/gpt-oss-120b-reap-48">gpt-oss-120b-reap-48</a></td>
+<td>The recommended checkpoint. Uniform 48/128 experts, MXFP4 preserved, serves in stock vLLM (CUDA and XPU).</td></tr>
+<tr><td><code>scripts/reap_saliency.py</code></td>
+<td>Layerwise REAP saliency runner that fits the whole procedure on a 16 GB card: one dequantized decoder layer in VRAM at a time, true sequential residual stream.</td></tr>
+<tr><td><code>scripts/prune_gptoss.py</code></td>
+<td>Surgical pruner. Slices MXFP4 blocks and scales as raw bytes, no dequantize/requantize round trip; emits a manifest with the exact kept indices.</td></tr>
+<tr><td><code>patches/gpt_oss.py</code></td>
+<td>vLLM patch adding per-layer expert budgets (<code>num_local_experts_per_layer</code>): the first way to serve a non-uniformly pruned gpt-oss checkpoint. Variable budgets tied uniform-48 at this compression level, but deeper cuts will need this.</td></tr>
+<tr><td><code>scripts/eval_scoring.py</code></td>
+<td>The frozen-replay eval harness (kappa, agreement, parse rate as a first-class metric).</td></tr>
+</table>
+</div>
+
+<p>One deployment bonus: EAGLE3 speculative decoding works against the pruned target using
+the stock, unpruned <code>RedHatAI/gpt-oss-120b-speculator.eagle3</code> draft, at ~40%
+acceptance (mean acceptance length ~2.1-2.3, measured on both CUDA and the deployed XPU
+service). Drafts trained on the full 128-expert model transfer to the 48-expert one without
+retraining.</p>
+
+<h2>Caveats, stated plainly</h2>
+
+<p>Every number here is from one task: reach.jobs resume/job scoring with strict-JSON
+output, calibrated on 60 prompts from that distribution. I make no claim about MMLU, code,
+math, or multilingual behavior, and the honest expectation is that general capability is
+reduced; prune with your own traffic using the tooling, not my keep-sets. The fix is also
+not a clean ablation (I changed corpus and ranking criterion together). And the 16 GB tier
+remains unsolved: my only deep cuts broke the output format, and REAP's published
+validation stops at 50% removal. With n=311 the defensible claim is "reap-48 is inside the
+full model's self-consistency range and clearly ahead of gpt-oss-20b," not that one backend
+beats the other.</p>
+
+<p>Hardware: the Intel Arc B70 (32 GB) and RTX 4080 Super (16 GB) are mine; the RTX 5090
+(32 GB) used for the CUDA replication and saliency cross-check was borrowed for this
+research, with thanks to its owner. Production now runs reap-48 on the B70 as the reach.jobs
+quality tier, full 128k context on a single card.</p>
+
+<footer>
+<p>© 2026 Bryan Vine · <a href="https://bryanvine.github.io/">bryanvine.github.io</a> ·
+<a href="https://github.com/bryanvine/gpt-oss-subset">gpt-oss-subset on GitHub</a> ·
+<a href="https://reach.jobs">reach.jobs</a></p>
+</footer>
+
+</div>
+</body>
+</html>

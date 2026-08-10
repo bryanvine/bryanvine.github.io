@@ -89,6 +89,21 @@
 
 <div id="papers">
 
+  <a class="card" data-date="2026-08-10" data-topic="GPU / LLM Inference"
+     href="https://bryanvine.github.io/gpt-oss-pruning/">
+    <p class="ptitle">Deleting 62.5% of gpt-oss-120b's Experts: Full-Model Quality on a Single 32 GB GPU</p>
+    <p class="pmeta"><span class="tag">MoE pruning</span><span class="tag">Open weights</span><span class="tag">gpt-oss-subset</span><span class="date">Aug 2026</span></p>
+    <p class="pdesc">The first expert-pruned gpt-oss-120b checkpoint: 48 of 128 experts per layer, 26.4 GB on
+    disk, 128k context in stock vLLM on one 32 GB card (CUDA <em>and</em> Intel XPU). On a frozen 311-prompt
+    replay of <a href="https://reach.jobs">reach.jobs</a>'s production resume/job scoring, it lands
+    <strong>inside the full model's own self-consistency range</strong> (kappa vs prod 0.508-0.538 against the
+    full model's 0.485-0.527) at 100% strict-JSON parse. The useful finding is the failure: prompt-only
+    calibration systematically deletes the experts that <em>write</em> the output format, and the model fails
+    by format collapse, not gradual decay. Generation-aware REAP calibration changes 60% of the keep-set and
+    recovers parity. Weights, MXFP4-preserving pruner, and a 16 GB-friendly saliency runner are all open.
+    <span class="arrow">Read →</span></p>
+  </a>
+
   <a class="card" data-date="2026-07-30" data-topic="AI Tooling"
      href="https://bryanvine.github.io/token-saver/">
     <p class="ptitle">Where Claude Code Tokens Actually Go — and a Small Open-Source Kit That Targets the Right 95%</p>
