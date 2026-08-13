@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The 8B Student Beats the Pruned 120B: Distilling a Production Scorer onto One 16 GB GPU</title>
+<meta name="description" content="Instead of pruning gpt-oss-120b further, distill it: 15.8k stored production outputs, QLoRA on a Qwen3-8B, 14 hours on an RTX 4080 Super. The student beats the expert-pruned 120b on every offline and live-shadow metric at 5x the speed, and the reason it can out-score its own teacher is the interesting part.">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<meta property="og:type" content="article">
+<meta property="og:title" content="The 8B Student Beats the Pruned 120B">
+<meta property="og:description" content="Distilling a production job scorer from stored gpt-oss-120b outputs into Qwen3-8B on one 16 GB GPU: kappa 0.642 vs the pruned model's 0.508-0.538, confidence error halved in live shadow, 5x faster.">
+<meta property="og:url" content="https://bryanvine.github.io/job-score-distillation/">
+<meta name="twitter:card" content="summary">
+<style>
+  :root{ --ink:#1a1a1a; --muted:#5b6470; --rule:#e3e6ea; --accent:#1f6feb; --bg:#fdfdfc; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink);
+        font:17px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; }
+  .wrap{ max-width:760px; margin:0 auto; padding:56px 22px 96px; }
+  a{ color:var(--accent); text-decoration:none; } a:hover{ text-decoration:underline; }
+  .crumb{ font-size:14px; color:var(--muted); margin-bottom:26px; }
+  h1{ font-size:31px; line-height:1.22; letter-spacing:-0.02em; margin:0 0 10px; }
+  .meta{ font-size:14px; color:var(--muted); margin:0 0 34px; padding-bottom:22px; border-bottom:3px solid var(--ink); }
+  h2{ font-size:22px; margin:40px 0 12px; letter-spacing:-0.01em; }
+  p{ margin:0 0 16px; }
+  pre{ background:#0f172a; color:#dbe4f0; border-radius:10px; padding:16px 18px; overflow-x:auto;
+       font:13.5px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  code{ font:0.92em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; background:#eef1f5;
+        padding:1px 5px; border-radius:5px; }
+  pre code{ background:none; padding:0; }
+  .tablewrap{ overflow-x:auto; margin:0 0 16px; }
+  table{ border-collapse:collapse; width:100%; margin:0; font-size:15px; }
+  th,td{ text-align:left; padding:8px 10px; border-bottom:1px solid var(--rule); vertical-align:top; }
+  th{ font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
+  blockquote{ margin:0 0 16px; padding:2px 18px; border-left:3px solid var(--accent); color:#33373d; }
+  .callout{ background:#eef3fb; border:1px solid #d6e2f5; border-radius:10px; padding:14px 18px; margin:0 0 16px; font-size:15.5px; }
+  footer{ margin-top:56px; padding-top:18px; border-top:1px solid var(--rule); color:var(--muted); font-size:13.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<p class="crumb"><a href="../">← bryanvine.github.io</a></p>
+
+<h1>The 8B Student Beats the Pruned 120B: Distilling a Production Scorer onto One 16 GB GPU</h1>
+<p class="meta">Bryan Vine · August 2026 ·
+code: <a href="https://github.com/bryanvine/fine-tuned-job-score-model">github.com/bryanvine/fine-tuned-job-score-model</a> ·
+previous: <a href="https://bryanvine.github.io/gpt-oss-pruning/">expert-pruning gpt-oss-120b</a></p>
+
+<p><a href="https://bryanvine.github.io/gpt-oss-pruning/">Last week</a> I pruned 62.5% of
+gpt-oss-120b's experts to fit <a href="https://reach.jobs">reach.jobs</a>'s production
+resume/job scorer on a single 32 GB GPU at full-model quality, and ended with an honest
+admission: <em>the 16 GB tier remains unsolved</em>. Every deep cut I tried broke the output
+format. This is the sequel, and the answer turned out to be a different tool entirely.
+Instead of cutting the teacher down, I distilled it: a QLoRA fine-tune of
+<strong>Qwen3-8B</strong> on 15.8k of the 120b's own stored production outputs, trained in
+14.3 hours on one RTX 4080 Super. On the same frozen 311-prompt replay it beats the pruned
+120b on every metric, at 5x the speed, and it has now replaced it as the live shadow model
+in production.</p>
+
+<h2>The dataset was already sitting in the database</h2>
+
+<p>The usual distillation workflow starts with an expensive step: run the teacher over a
+corpus and collect outputs. But a production scoring system has been doing exactly that for
+months, for free. Every FAST-tier score in the database is a stored
+<code>(prompt inputs, strict-JSON output)</code> pair from <code>gpt-oss-120b</code>: the
+scores themselves plus a rationale object with the reasoning, key matches, gaps, risk, and
+location fields. The dataset builder reconstructs the exact production prompt for each row,
+scrubs resume PII, rebuilds the JSON object the system prompt demands from the stored
+columns, and excludes the 311 frozen eval prompts. Selection: all ~7k apply/review
+decisions (positives are scarce), 12k sampled skips, and every row a human later voted on.
+15,810 training pairs, 322 validation, p99 prompt length 6.4k tokens.</p>
+
+<p>Two properties of this data matter. It is <em>exactly</em> on-distribution: same system
+prompt, same JSON schema, same score semantics the serving path expects. And the targets
+are direct-JSON with no chain-of-thought, so the student learns the fast serving mode
+natively: no reasoning tokens to generate, none to pay for.</p>
+
+<h2>Training: unremarkable on purpose, with one trap</h2>
+
+<p>The recipe is deliberately boring: QLoRA rank 32 on the 4-bit base via
+<a href="https://github.com/unslothai/unsloth">unsloth</a>, 8192 sequence length, loss
+masked to the assistant response, 2 epochs, cosine LR 2e-4, bf16, 8-bit Adam. It fits in
+16 GB with room to spare and finishes overnight.</p>
+
+<div class="callout">The trap: unsloth's <code>prediction_step</code> materializes
+full-vocabulary fp32 logits during in-training eval even with
+<code>prediction_loss_only=True</code>. At 8k sequence length that is an instant OOM on a
+16 GB card, and because the eval at step N runs <em>before</em> the checkpoint save at step
+N, it took two hours of training down with it. I disabled in-training eval entirely
+(<code>eval_strategy="no"</code>); the metric that matters is the offline replay anyway.
+If you keep eval, save first.</div>
+
+<h2>How can a student out-score its own teacher?</h2>
+
+<p>On the frozen replay the distilled 8B scores Cohen's kappa <strong>0.642</strong>
+against stored production decisions. The pruned 120b scored 0.508-0.538. A <em>fresh</em>
+run of the full, unpruned 120b scores 0.485-0.527. The student appears to beat the model
+that generated its own training data, which should set off alarm bells, so here is the
+honest mechanism.</p>
+
+<p>The stored production outputs were generated with research and exemplar context that a
+replay cannot reconstruct: whatever retrieval and history the live system attached at
+scoring time. A fresh 120b call sees only the bare prompt, so it agrees with its own stored
+decisions at kappa ~0.5. The student was <em>trained on the stored outputs themselves</em>,
+so it absorbed the average effect of all that invisible context into its weights. It is not
+smarter than the 120b; it is a better predictor of what production actually decided,
+which, for a shadow model whose job is to reproduce production behavior on cheaper
+hardware, is precisely the objective.</p>
+
+<div class="tablewrap">
+<table>
+<tr><th>model</th><th>kappa vs prod</th><th>agree vs 120b</th><th>sem MAE vs 120b</th><th>s/prompt</th></tr>
+<tr><td>gpt-oss-120b, fresh-run ceiling</td><td>0.485-0.527</td><td>0.890 (self)</td><td>0.059</td><td></td></tr>
+<tr><td>reap-48 pruned 120b (B70 / 5090)</td><td>0.508 / 0.538</td><td>0.835 / 0.823</td><td>0.105 / 0.101</td><td>7.2 (B70)</td></tr>
+<tr><td>gpt-oss-20b stock</td><td>0.456</td><td>0.781</td><td>0.125</td><td></td></tr>
+<tr><td><strong>qwen3-8b distilled (4080S, 4-bit)</strong></td><td><strong>0.642</strong></td><td><strong>0.842</strong></td><td><strong>0.081</strong></td><td><strong>1.4</strong></td></tr>
+</table>
+</div>
+
+<p>Parse rate is 100% strict JSON across all 311 prompts, with no format guardrails beyond
+the fine-tune itself. The agreement-vs-120b column is the cleaner comparison (same bare
+replay conditions for everyone), and there the student still leads the pruned model while
+staying under the full model's 0.890 self-agreement ceiling, which is the sanity check that
+nothing pathological is going on.</p>
+
+<h2>Live shadow: the weaknesses it was built to fix, fixed</h2>
+
+<p>Offline replays are a controlled lab. The real test is production shadow traffic: every
+FAST score fires an async duplicate call to the candidate on the identical prompt and logs
+both outputs. The pruned 120b ran as the shadow for ~46 hours; the distilled 8B took over
+the same stream immediately after. First ~13 hours, 1,906 pairs:</p>
+
+<div class="tablewrap">
+<table>
+<tr><th>vs primary 120b</th><th>reap-48 (n=11,653)</th><th>qwen3-8b distilled (n=1,906)</th></tr>
+<tr><td>semantic delta, mean / median</td><td>0.108 / 0.060</td><td><strong>0.094 / 0.050</strong></td></tr>
+<tr><td>within 0.1 / within 0.2</td><td>65.4% / 83.5%</td><td><strong>73.0% / 85.6%</strong></td></tr>
+<tr><td>confidence MAE</td><td>0.180</td><td><strong>0.079</strong></td></tr>
+<tr><td>risk MAE</td><td>0.229</td><td><strong>0.161</strong></td></tr>
+<tr><td>location_ok agreement</td><td>93.4%</td><td>93.6%</td></tr>
+</table>
+</div>
+
+<p>The pattern is not random improvement. Confidence and risk were exactly the two fields
+where the pruned model drifted most from the full teacher (pruning preserved the primary
+semantic judgment better than the calibration-flavored side channels), and they are exactly
+where distillation on real stored outputs helps most: confidence error is cut by more than
+half, risk error by 30%. The student also serves dense bf16 on the Intel Arc B70 with a
+third of the card left over, where the pruned 120b needed all 32 GB at 4-bit.</p>
+
+<h2>What's released, and what deliberately isn't</h2>
+
+<p>The <a href="https://github.com/bryanvine/fine-tuned-job-score-model">repo</a> (Apache
+2.0) has the dataset builder (selection and target-reconstruction logic), the unsloth
+trainer with the OOM workaround, merge and serve recipes for both CUDA bnb-4bit and Intel
+XPU bf16, the frozen-replay eval harness, the shadow-traffic aggregator, and the eval
+results. Two things are absent on purpose. The data: real user scoring records, scrubbed
+or not, stay private. And unlike last week, <strong>no weights</strong>: reap-48 could be
+published because pruning a public model touches no user data, but this model was trained
+on user resumes and stored decisions, and an SFT'd 8B can memorize its training set. That
+asymmetry (pruned checkpoint publishable, distilled checkpoint not) is worth internalizing
+if you are choosing between the two techniques for your own stack.</p>
+
+<h2>Caveats, stated plainly</h2>
+
+<p>Everything here is one task and one distribution: reach.jobs scoring with strict-JSON
+output. The 8B is a specialist; the honest expectation is that its general capability is
+whatever Qwen3-8B had, minus whatever the fine-tune displaced, and I have not measured it.
+The kappa-vs-production comparison favors the student by construction (it trained on
+production's outputs; the replayed teachers did not have their original context), which is
+why I lean on the agreement-vs-reference column and the live shadow numbers. The shadow
+sample is 13 hours against reap-48's 46; time-of-day and job-mix effects are not fully
+averaged out, though every metric moved the same direction. And n=311 on the frozen replay
+means the defensible claim is "clearly at least as good, dramatically cheaper," not a
+precise ranking.</p>
+
+<p>The larger point survives all the caveats: if you run an expensive model in production
+and store its outputs, you are already sitting on a distillation dataset that is perfectly
+on-distribution for your workload. A weekend, one consumer GPU, and a boring QLoRA recipe
+turned mine into a model that tracks production more faithfully than a pruned version of
+the teacher itself, at 5x the speed, on hardware a fifth the size. The teacher never left
+production while it happened.</p>
+
+<footer>
+<p>© 2026 Bryan Vine · <a href="https://bryanvine.github.io/">bryanvine.github.io</a> ·
+<a href="https://github.com/bryanvine/fine-tuned-job-score-model">fine-tuned-job-score-model on GitHub</a> ·
+<a href="https://reach.jobs">reach.jobs</a></p>
+</footer>
+
+</div>
+</body>
+</html>

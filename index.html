@@ -89,6 +89,20 @@
 
 <div id="papers">
 
+  <a class="card" data-date="2026-08-13" data-topic="LLM Training"
+     href="https://bryanvine.github.io/job-score-distillation/">
+    <p class="ptitle">The 8B Student Beats the Pruned 120B: Distilling a Production Scorer onto One 16 GB GPU</p>
+    <p class="pmeta"><span class="tag">Distillation</span><span class="tag">QLoRA</span><span class="tag">fine-tuned-job-score-model</span><span class="date">Aug 2026</span></p>
+    <p class="pdesc">The sequel to the expert-pruning paper answers its open problem, the 16 GB tier, with a
+    different tool: distillation. Production had already generated the dataset for free; 15.8k stored
+    gpt-oss-120b scoring outputs, rebuilt into exact (prompt, strict-JSON) pairs, QLoRA'd into Qwen3-8B in
+    <strong>14.3 hours on one RTX 4080 Super</strong>. On the frozen 311-prompt replay it beats the pruned 120b on
+    every metric (kappa vs prod <strong>0.642</strong> against 0.508-0.538) at 5x the speed, and in live shadow
+    it halves confidence error and cuts risk error 30%: exactly the fields pruning degraded most. Includes why
+    a student can honestly out-score its own teacher, and why the pruned checkpoint was publishable but the
+    distilled weights are not. <span class="arrow">Read →</span></p>
+  </a>
+
   <a class="card" data-date="2026-08-10" data-topic="GPU / LLM Inference"
      href="https://bryanvine.github.io/gpt-oss-pruning/">
     <p class="ptitle">Deleting 62.5% of gpt-oss-120b's Experts: Full-Model Quality on a Single 32 GB GPU</p>
